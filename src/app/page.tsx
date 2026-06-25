@@ -163,35 +163,67 @@ export default function HomePage() {
               ? { token: tokenToSend, meeting_id: selectedMeeting, device_info: navigator.userAgent }
               : { signin_code: tokenToSend, meeting_id: selectedMeeting, device_info: navigator.userAgent };
 
-            const res = await fetch('/api/checkin', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(requestBody),
-            }).then((r) => r.json());
+            // Retry logic for network errors (max 2 retries)
+            let res: Record<string, unknown> | null = null;
+            let lastError: Error | null = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try {
+                const response = await fetch('/api/checkin', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(requestBody),
+                  signal: AbortSignal.timeout(10000), // 10s timeout
+                });
+                res = await response.json();
+                lastError = null;
+                break;
+              } catch (err) {
+                lastError = err as Error;
+                if (attempt < 2) {
+                  await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1))); // 1s, 2s delay
+                }
+              }
+            }
+
+            if (lastError || !res) {
+              // Network error after all retries
+              setResult({
+                type: 'invalid',
+                message: '网络连接失败，请检查网络后重试',
+              });
+              setScanStatus('result');
+              timerRef.current = setTimeout(() => {
+                setScanStatus('scanning');
+                setResult(null);
+                isProcessingRef.current = false;
+              }, 3000);
+              return;
+            }
 
             let checkinResult: CheckinResult;
+            const resData = res.data as Record<string, unknown> | undefined;
             if (res.success) {
               checkinResult = {
                 type: 'success',
-                name: res.data.name,
-                position: res.data.position,
-                company: res.data.company,
-                checkin_at: res.data.checkin_at,
-                checkin_number: res.data.checkin_number,
+                name: resData?.name as string,
+                position: resData?.position as string,
+                company: resData?.company as string,
+                checkin_at: resData?.checkin_at as string,
+                checkin_number: resData?.checkin_number as number,
                 message: '签到成功',
               };
             } else if (res.type === 'duplicate') {
               checkinResult = {
                 type: 'duplicate',
-                name: res.data?.name,
-                position: res.data?.position,
-                checkin_at: res.data?.checkin_at,
+                name: resData?.name as string,
+                position: resData?.position as string,
+                checkin_at: resData?.checkin_at as string,
                 message: '已签到',
               };
             } else {
               checkinResult = {
                 type: 'invalid',
-                message: res.error || '签到码无效',
+                message: (res.error as string) || '签到码无效',
               };
             }
 

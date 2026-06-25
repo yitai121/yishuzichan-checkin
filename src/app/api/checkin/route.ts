@@ -5,9 +5,9 @@ import { checkRateLimit, getClientIP, rateLimitKey } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting: max 30 checkin attempts per minute per IP
+    // Rate limiting: max 100 checkin attempts per minute per IP (support multiple devices on same network)
     const ip = getClientIP(request);
-    const rl = checkRateLimit(rateLimitKey(ip, 'checkin'), 30, 60 * 1000);
+    const rl = checkRateLimit(rateLimitKey(ip, 'checkin'), 100, 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { success: false, error: '操作过于频繁，请稍后再试', type: 'rate_limited' },
