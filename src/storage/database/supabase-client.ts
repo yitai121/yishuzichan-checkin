@@ -10,14 +10,25 @@ interface SupabaseCredentials {
 }
 
 function loadEnv(): void {
-  if (envLoaded || (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY)) {
+  if (envLoaded) return;
+
+  // Check if COZE_ prefixed env vars are already set (coze platform's database)
+  if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
+    envLoaded = true;
+    return;
+  }
+
+  // Check if standard env vars are set
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    envLoaded = true;
     return;
   }
 
   try {
     try {
       require('dotenv').config();
-      if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
+      if ((process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) ||
+          (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
         envLoaded = true;
         return;
       }
@@ -62,6 +73,17 @@ except Exception as e:
       }
     }
 
+    // Map COZE_ prefixed vars to standard names if standard names are not set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.COZE_SUPABASE_URL) {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.COZE_SUPABASE_URL;
+    }
+    if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && process.env.COZE_SUPABASE_ANON_KEY) {
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.COZE_SUPABASE_ANON_KEY;
+    }
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.COZE_SUPABASE_SERVICE_ROLE_KEY) {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+    }
+
     envLoaded = true;
   } catch {
     // Silently fail
@@ -71,14 +93,16 @@ except Exception as e:
 function getSupabaseCredentials(): SupabaseCredentials {
   loadEnv();
 
-  const url = process.env.COZE_SUPABASE_URL;
-  const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
+  // Prefer COZE_ prefixed vars (coze platform's database with tables already created)
+  // Fall back to NEXT_PUBLIC_ prefixed vars (user's configured Supabase)
+  const url = process.env.COZE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.COZE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url) {
-    throw new Error('COZE_SUPABASE_URL is not set');
+    throw new Error('Supabase URL is not set (COZE_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL)');
   }
   if (!anonKey) {
-    throw new Error('COZE_SUPABASE_ANON_KEY is not set');
+    throw new Error('Supabase anon key is not set (COZE_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY)');
   }
 
   return { url, anonKey };
@@ -86,7 +110,7 @@ function getSupabaseCredentials(): SupabaseCredentials {
 
 function getSupabaseServiceRoleKey(): string | undefined {
   loadEnv();
-  return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+  return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
 function getSupabaseClient(token?: string): SupabaseClient {

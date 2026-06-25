@@ -64,7 +64,31 @@ export async function POST(request: NextRequest) {
       })
       .select()
       .single();
-    if (insertError) throw new Error(`签到失败: ${insertError.message}`);
+
+    // Handle unique constraint violation (race condition: duplicate checkin)
+    if (insertError) {
+      if (insertError.code === '23505') {
+        // Unique violation - already checked in
+        const { data: existingCheckin2 } = await client
+          .from('checkins')
+          .select('id, checkin_at')
+          .eq('attendee_id', attendee.id)
+          .eq('meeting_id', meeting_id.trim())
+          .maybeSingle();
+        return NextResponse.json({
+          success: false,
+          error: '已签到',
+          type: 'duplicate',
+          data: {
+            name: attendee.name,
+            position: attendee.position,
+            company: attendee.company,
+            checkin_at: existingCheckin2?.checkin_at || new Date().toISOString(),
+          },
+        });
+      }
+      throw new Error(`签到失败: ${insertError.message}`);
+    }
 
     // Get today's checkin count for this meeting
     const { count, error: countError } = await client

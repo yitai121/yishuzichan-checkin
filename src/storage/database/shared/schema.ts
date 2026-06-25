@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, text, boolean, index } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, text, boolean, index, uniqueIndex } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const healthCheck = pgTable("health_check", {
@@ -37,7 +37,7 @@ export const attendees = pgTable(
   },
   (table) => [
     index("attendees_meeting_id_idx").on(table.meeting_id),
-    index("attendees_signin_code_idx").on(table.signin_code),
+    uniqueIndex("attendees_signin_code_unique_idx").on(table.signin_code),
   ]
 );
 
@@ -54,5 +54,6 @@ export const checkins = pgTable(
     index("checkins_attendee_id_idx").on(table.attendee_id),
     index("checkins_meeting_id_idx").on(table.meeting_id),
     index("checkins_checkin_at_idx").on(table.checkin_at),
+    uniqueIndex("checkins_attendee_meeting_unique_idx").on(table.attendee_id, table.meeting_id),
   ]
 );
