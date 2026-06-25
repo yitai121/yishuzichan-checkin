@@ -2,6 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
+import {
+  Download,
+  Loader2,
+  QrCode,
+  FileDown,
+} from 'lucide-react';
 
 interface Meeting {
   id: string;
@@ -66,7 +72,7 @@ export default function QRCodesPage() {
         const dataUrl = await QRCode.toDataURL(qrData, {
           width: 200,
           margin: 2,
-          color: { dark: '#111827', light: '#FFFFFF' },
+          color: { dark: '#1A1D24', light: '#FFFFFF' },
         });
         urls[a.id] = dataUrl;
       } catch {
@@ -101,15 +107,12 @@ export default function QRCodesPage() {
       const { default: jsPDF } = await import('jspdf');
       const { default: html2canvas } = await import('html2canvas');
 
-      // Create a temporary container for rendering
       const container = document.createElement('div');
       container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;padding:20px;background:white;';
       document.body.appendChild(container);
 
       const pdf = new jsPDF('p', 'mm', 'a4');
       const itemsPerPage = 9;
-      const cols = 3;
-      const rows = 3;
 
       for (let page = 0; page < Math.ceil(attendees.length / itemsPerPage); page++) {
         if (page > 0) pdf.addPage();
@@ -127,18 +130,17 @@ export default function QRCodesPage() {
           const qrDataUrl = await QRCode.toDataURL(qrData, {
             width: 150,
             margin: 1,
-            color: { dark: '#111827', light: '#FFFFFF' },
+            color: { dark: '#1A1D24', light: '#FFFFFF' },
           });
           cell.innerHTML = `
             <img src="${qrDataUrl}" style="width:120px;height:120px;margin:0 auto;display:block;" />
-            <div style="margin-top:6px;font-size:13px;font-weight:600;color:#111827;">${a.name}</div>
-            <div style="font-size:11px;color:#6B7280;">${a.position || ''}</div>
+            <div style="margin-top:6px;font-size:13px;font-weight:600;color:#1A1D24;">${a.name}</div>
+            <div style="font-size:11px;color:#5A6171;">${a.position || ''}</div>
           `;
           grid.appendChild(cell);
         }
         container.appendChild(grid);
 
-        // Wait for rendering
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         const canvas = await html2canvas(container, { scale: 2, useCORS: true });
@@ -159,23 +161,26 @@ export default function QRCodesPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="animate-fade-in-up">
+      {/* Toast */}
       {toast && (
-        <div className="fixed top-4 right-4 bg-[#111827] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
+        <div className="fixed top-6 right-6 bg-[#1A1D24] text-white text-sm px-4 py-3 rounded-xl shadow-lg z-50 animate-toast-in flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
           {toast}
         </div>
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-[#111827]">二维码生成</h1>
-          <p className="text-sm text-[#6B7280] mt-0.5">为参会人生成专属签到二维码</p>
+          <h1 className="text-[20px] font-bold text-[#1A1D24]">二维码管理</h1>
+          <p className="text-[13px] text-[#5A6171] mt-1">为参会人生成专属签到二维码</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <select
             value={selectedMeeting}
             onChange={(e) => setSelectedMeeting(e.target.value)}
-            className="px-3 py-2 text-sm border border-[#E5E7EB] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/30"
+            className="input-field w-auto text-[13px] font-medium"
           >
             {meetings.map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>
@@ -184,47 +189,51 @@ export default function QRCodesPage() {
           <button
             onClick={downloadAllPDF}
             disabled={loading || attendees.length === 0}
-            className="px-4 py-2 bg-[#5B5FC7] text-white text-sm font-medium rounded-lg hover:bg-[#4A4EB0] disabled:opacity-50 transition-colors"
+            className="btn-primary disabled:opacity-50"
           >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
             {loading ? '生成中...' : '下载全部 PDF'}
           </button>
         </div>
       </div>
 
       {generating ? (
-        <div className="text-center py-12 text-[#6B7280]">
-          <p className="text-sm">正在生成二维码...</p>
+        <div className="card py-16 text-center">
+          <Loader2 className="w-6 h-6 text-[#5B5FC7] animate-spin mx-auto mb-3" />
+          <p className="text-[#5A6171] text-sm">正在生成二维码...</p>
         </div>
       ) : attendees.length === 0 ? (
-        <div className="text-center py-16 text-[#6B7280]">
-          <p className="text-3xl mb-2">📱</p>
-          <p className="text-sm">暂无参会人，请先在参会名单中导入</p>
+        <div className="card py-16 text-center">
+          <QrCode className="w-10 h-10 text-[#9CA3AF] mx-auto mb-3" strokeWidth={1.5} />
+          <p className="text-[#5A6171] text-sm">暂无参会人，请先在参会名单中导入</p>
         </div>
       ) : (
         <div ref={gridRef} className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {attendees.map((a) => (
+          {attendees.map((a, i) => (
             <div
               key={a.id}
-              className="bg-white rounded-xl border border-[#E5E7EB] p-3 text-center hover:shadow-md transition-shadow group"
+              className="card p-4 text-center group animate-stagger-in"
+              style={{ animationDelay: `${Math.min(i * 30, 500)}ms` }}
             >
               {qrUrls[a.id] ? (
                 <img
                   src={qrUrls[a.id]}
                   alt={`${a.name} QR`}
-                  className="w-full aspect-square object-contain rounded-lg mb-2"
+                  className="w-full aspect-square object-contain rounded-xl mb-3"
                 />
               ) : (
-                <div className="w-full aspect-square bg-[#F3F4F6] rounded-lg mb-2 flex items-center justify-center">
-                  <span className="text-xs text-[#9CA3AF]">生成中</span>
+                <div className="w-full aspect-square bg-[#F4F5F8] rounded-xl mb-3 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-[#9CA3AF] animate-spin" />
                 </div>
               )}
-              <p className="text-xs font-medium text-[#111827] truncate">{a.name}</p>
-              <p className="text-[10px] text-[#9CA3AF] truncate">{a.position || ''}</p>
+              <p className="text-[12px] font-semibold text-[#1A1D24] truncate">{a.name}</p>
+              <p className="text-[11px] text-[#9CA3AF] truncate mt-0.5">{a.position || ''}</p>
               <button
                 onClick={() => downloadSingle(a)}
-                className="mt-1.5 px-2 py-1 text-[10px] text-[#5B5FC7] border border-[#5B5FC7]/30 rounded hover:bg-[#EEEDFB] transition-colors opacity-0 group-hover:opacity-100"
+                className="mt-2 btn-secondary w-full justify-center text-[11px] py-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                下载 PNG
+                <Download className="w-3 h-3" />
+                PNG
               </button>
             </div>
           ))}

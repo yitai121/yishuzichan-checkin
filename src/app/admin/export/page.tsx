@@ -1,6 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import {
+  Download,
+  Loader2,
+  FileSpreadsheet,
+  CheckCircle2,
+} from 'lucide-react';
 
 interface Meeting {
   id: string;
@@ -39,7 +45,6 @@ export default function ExportPage() {
     try {
       const res = await fetch(`/api/export/${selectedMeeting}`).then((r) => r.json());
       if (res.success) {
-        // Download from base64
         const byteCharacters = atob(res.data.base64);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -64,25 +69,28 @@ export default function ExportPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="animate-fade-in-up">
+      {/* Toast */}
       {toast && (
-        <div className="fixed top-4 right-4 bg-[#111827] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
+        <div className="fixed top-6 right-6 bg-[#1A1D24] text-white text-sm px-4 py-3 rounded-xl shadow-lg z-50 animate-toast-in flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
           {toast}
         </div>
       )}
 
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-[#111827]">数据导出</h1>
-        <p className="text-sm text-[#6B7280] mt-0.5">导出会议签到记录为 Excel 文件</p>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-[20px] font-bold text-[#1A1D24]">数据导出</h1>
+        <p className="text-[13px] text-[#5A6171] mt-1">导出会议签到记录为 Excel 文件</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 max-w-lg">
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-[#111827] mb-1.5">选择会议</label>
+      <div className="card p-6 max-w-lg">
+        <div className="mb-5">
+          <label className="block text-[13px] font-medium text-[#1A1D24] mb-2">选择会议</label>
           <select
             value={selectedMeeting}
             onChange={(e) => setSelectedMeeting(e.target.value)}
-            className="w-full px-3 py-2.5 text-sm border border-[#E5E7EB] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/30"
+            className="input-field"
           >
             {meetings.map((m) => (
               <option key={m.id} value={m.id}>
@@ -92,20 +100,31 @@ export default function ExportPage() {
           </select>
         </div>
 
-        <div className="bg-[#F9FAFB] rounded-lg p-4 mb-4">
-          <h3 className="text-sm font-medium text-[#111827] mb-2">导出内容</h3>
-          <ul className="text-xs text-[#6B7280] space-y-1">
-            <li>- 参会人姓名、手机号、岗位、单位、备注</li>
-            <li>- 签到状态（已签到/未签到）</li>
-            <li>- 签到时间</li>
+        <div className="bg-[#F8F9FB] rounded-xl p-4 mb-5 border border-[#E5E7EB]">
+          <h3 className="text-[13px] font-semibold text-[#1A1D24] mb-3 flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-[#5B5FC7]" strokeWidth={1.5} />
+            导出内容
+          </h3>
+          <ul className="space-y-2">
+            {[
+              '参会人姓名、手机号、岗位、单位、备注',
+              '签到状态（已签到 / 未签到）',
+              '签到时间',
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-2 text-[12px] text-[#5A6171]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981] shrink-0" strokeWidth={2} />
+                {item}
+              </li>
+            ))}
           </ul>
         </div>
 
         <button
           onClick={handleExport}
           disabled={loading || !selectedMeeting}
-          className="w-full py-2.5 bg-[#5B5FC7] text-white text-sm font-medium rounded-lg hover:bg-[#4A4EB0] disabled:opacity-50 transition-colors"
+          className="btn-primary w-full justify-center disabled:opacity-50"
         >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           {loading ? '导出中...' : '导出 Excel'}
         </button>
       </div>

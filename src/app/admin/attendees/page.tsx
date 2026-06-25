@@ -2,6 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import {
+  Plus,
+  Upload,
+  Loader2,
+  X,
+  Pencil,
+  Trash2,
+  Users,
+  FileSpreadsheet,
+  Search,
+} from 'lucide-react';
 
 interface Meeting {
   id: string;
@@ -42,6 +53,7 @@ export default function AttendeesPage() {
   const [editNote, setEditNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
@@ -49,7 +61,6 @@ export default function AttendeesPage() {
     setTimeout(() => setToast(''), 2500);
   };
 
-  // Fetch meetings
   useEffect(() => {
     fetch('/api/meetings')
       .then((r) => r.json())
@@ -64,7 +75,6 @@ export default function AttendeesPage() {
       .catch(() => {});
   }, []);
 
-  // Fetch attendees
   useEffect(() => {
     if (!selectedMeeting) return;
     fetch(`/api/attendees?meeting_id=${selectedMeeting}`)
@@ -123,7 +133,6 @@ export default function AttendeesPage() {
         showToast(`成功导入 ${res.count} 人`);
         setShowPreview(false);
         setPreviewData([]);
-        // Refresh attendees
         const attendeesRes = await fetch(`/api/attendees?meeting_id=${selectedMeeting}`).then((r) => r.json());
         if (attendeesRes.success) setAttendees(attendeesRes.data);
       } else {
@@ -219,36 +228,49 @@ export default function AttendeesPage() {
     setLoading(false);
   };
 
+  const filteredAttendees = attendees.filter((a) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      a.name.toLowerCase().includes(q) ||
+      (a.phone && a.phone.includes(q)) ||
+      (a.company && a.company.toLowerCase().includes(q)) ||
+      (a.position && a.position.toLowerCase().includes(q))
+    );
+  });
+
   return (
-    <div className="p-6">
+    <div className="animate-fade-in-up">
+      {/* Toast */}
       {toast && (
-        <div className="fixed top-4 right-4 bg-[#111827] text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
+        <div className="fixed top-6 right-6 bg-[#1A1D24] text-white text-sm px-4 py-3 rounded-xl shadow-lg z-50 animate-toast-in flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
           {toast}
         </div>
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-[#111827]">参会名单</h1>
-          <p className="text-sm text-[#6B7280] mt-0.5">管理参会人员，支持 Excel 批量导入</p>
+          <h1 className="text-[20px] font-bold text-[#1A1D24]">参会名单</h1>
+          <p className="text-[13px] text-[#5A6171] mt-1">管理参会人员，支持 Excel 批量导入</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <select
             value={selectedMeeting}
             onChange={(e) => setSelectedMeeting(e.target.value)}
-            className="px-3 py-2 text-sm border border-[#E5E7EB] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/30"
+            className="input-field w-auto text-[13px] font-medium"
           >
             {meetings.map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </select>
-          <button
-            onClick={handleAddSingle}
-            className="px-3 py-2 text-sm text-[#5B5FC7] border border-[#5B5FC7]/30 rounded-lg hover:bg-[#EEEDFB] transition-colors"
-          >
+          <button onClick={handleAddSingle} className="btn-secondary">
+            <Plus className="w-4 h-4" />
             手动添加
           </button>
-          <label className="px-4 py-2 bg-[#5B5FC7] text-white text-sm font-medium rounded-lg hover:bg-[#4A4EB0] transition-colors cursor-pointer">
+          <label className="btn-primary cursor-pointer">
+            <Upload className="w-4 h-4" />
             上传 Excel
             <input
               ref={fileInputRef}
@@ -263,45 +285,42 @@ export default function AttendeesPage() {
 
       {/* Preview modal */}
       {showPreview && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40" onClick={() => setShowPreview(false)}>
-          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col shadow-xl animate-slide-up">
-            <h2 className="text-lg font-semibold text-[#111827] mb-3">
-              预览导入数据 ({previewData.length} 条)
-            </h2>
-            <div className="flex-1 overflow-auto border border-[#E5E7EB] rounded-lg mb-4">
-              <table className="w-full text-sm">
-                <thead className="bg-[#F3F4F6] sticky top-0">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40" onClick={() => setShowPreview(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="card p-6 w-full max-w-2xl max-h-[80vh] flex flex-col animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[16px] font-semibold text-[#1A1D24]">
+                预览导入数据 ({previewData.length} 条)
+              </h2>
+              <button onClick={() => setShowPreview(false)} className="p-1 rounded-lg hover:bg-[#F4F5F8]">
+                <X className="w-4 h-4 text-[#9CA3AF]" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto border border-[#E5E7EB] rounded-xl mb-4">
+              <table className="w-full text-[13px]">
+                <thead className="table-header sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-[#6B7280]">姓名</th>
-                    <th className="px-3 py-2 text-left font-medium text-[#6B7280]">手机号</th>
-                    <th className="px-3 py-2 text-left font-medium text-[#6B7280]">岗位</th>
-                    <th className="px-3 py-2 text-left font-medium text-[#6B7280]">单位</th>
+                    <th className="px-4 py-3 text-left font-medium text-[#5A6171]">姓名</th>
+                    <th className="px-4 py-3 text-left font-medium text-[#5A6171]">手机号</th>
+                    <th className="px-4 py-3 text-left font-medium text-[#5A6171]">岗位</th>
+                    <th className="px-4 py-3 text-left font-medium text-[#5A6171]">单位</th>
                   </tr>
                 </thead>
                 <tbody>
                   {previewData.map((row, i) => (
-                    <tr key={i} className="border-t border-[#E5E7EB]">
-                      <td className="px-3 py-1.5 text-[#111827]">{row.name}</td>
-                      <td className="px-3 py-1.5 text-[#6B7280]">{row.phone || '-'}</td>
-                      <td className="px-3 py-1.5 text-[#6B7280]">{row.position || '-'}</td>
-                      <td className="px-3 py-1.5 text-[#6B7280]">{row.company || '-'}</td>
+                    <tr key={i} className="table-row border-t border-[#E5E7EB]">
+                      <td className="px-4 py-3 text-[#1A1D24] font-medium">{row.name}</td>
+                      <td className="px-4 py-3 text-[#5A6171]">{row.phone || '-'}</td>
+                      <td className="px-4 py-3 text-[#5A6171]">{row.position || '-'}</td>
+                      <td className="px-4 py-3 text-[#5A6171]">{row.company || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowPreview(false)}
-                className="flex-1 py-2 text-sm text-[#6B7280] border border-[#E5E7EB] rounded-lg hover:bg-[#F3F4F6] transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleImport}
-                disabled={loading}
-                className="flex-1 py-2 text-sm bg-[#5B5FC7] text-white font-medium rounded-lg hover:bg-[#4A4EB0] disabled:opacity-50 transition-colors"
-              >
+            <div className="flex gap-3">
+              <button onClick={() => setShowPreview(false)} className="btn-secondary flex-1 justify-center">取消</button>
+              <button onClick={handleImport} disabled={loading} className="btn-primary flex-1 justify-center disabled:opacity-50">
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {loading ? '导入中...' : '确认导入'}
               </button>
             </div>
@@ -311,67 +330,95 @@ export default function AttendeesPage() {
 
       {/* Edit modal */}
       {showEditForm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40" onClick={() => setShowEditForm(false)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40" onClick={() => setShowEditForm(false)}>
           <form
             onSubmit={handleUpdate}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl animate-slide-up"
+            className="card p-6 w-full max-w-md animate-fade-in-up"
           >
-            <h2 className="text-lg font-semibold text-[#111827] mb-4">编辑参会人</h2>
-            <div className="space-y-3">
-              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} required placeholder="姓名 *" className="w-full px-3 py-2 text-sm border border-[#E5E7EB] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/30" />
-              <input type="text" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="手机号" className="w-full px-3 py-2 text-sm border border-[#E5E7EB] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/30" />
-              <input type="text" value={editPosition} onChange={(e) => setEditPosition(e.target.value)} placeholder="岗位" className="w-full px-3 py-2 text-sm border border-[#E5E7EB] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/30" />
-              <input type="text" value={editCompany} onChange={(e) => setEditCompany(e.target.value)} placeholder="单位" className="w-full px-3 py-2 text-sm border border-[#E5E7EB] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/30" />
-              <input type="text" value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="备注" className="w-full px-3 py-2 text-sm border border-[#E5E7EB] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/30" />
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[16px] font-semibold text-[#1A1D24]">编辑参会人</h2>
+              <button type="button" onClick={() => setShowEditForm(false)} className="p-1 rounded-lg hover:bg-[#F4F5F8]">
+                <X className="w-4 h-4 text-[#9CA3AF]" />
+              </button>
             </div>
-            <div className="flex gap-2 mt-5">
-              <button type="button" onClick={() => setShowEditForm(false)} className="flex-1 py-2 text-sm text-[#6B7280] border border-[#E5E7EB] rounded-lg hover:bg-[#F3F4F6] transition-colors">取消</button>
-              <button type="submit" disabled={loading} className="flex-1 py-2 text-sm bg-[#5B5FC7] text-white font-medium rounded-lg hover:bg-[#4A4EB0] disabled:opacity-50 transition-colors">{loading ? '保存中...' : '保存'}</button>
+            <div className="space-y-4">
+              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} required placeholder="姓名 *" className="input-field" />
+              <input type="text" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="手机号" className="input-field" />
+              <input type="text" value={editPosition} onChange={(e) => setEditPosition(e.target.value)} placeholder="岗位" className="input-field" />
+              <input type="text" value={editCompany} onChange={(e) => setEditCompany(e.target.value)} placeholder="单位" className="input-field" />
+              <input type="text" value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="备注" className="input-field" />
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button type="button" onClick={() => setShowEditForm(false)} className="btn-secondary flex-1 justify-center">取消</button>
+              <button type="submit" disabled={loading} className="btn-primary flex-1 justify-center disabled:opacity-50">
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {loading ? '保存中...' : '保存'}
+              </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Attendee list */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB]">
-        <div className="px-4 py-3 border-b border-[#E5E7EB] flex items-center justify-between">
-          <span className="text-sm font-medium text-[#111827]">共 {attendees.length} 人</span>
-          <span className="text-xs text-[#9CA3AF]">Excel 表头：姓名、手机号、岗位、单位、备注</span>
+      {/* Search & Table */}
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#E5E7EB] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] font-semibold text-[#1A1D24]">共 {attendees.length} 人</span>
+            <span className="text-[11px] text-[#9CA3AF]">Excel 表头：姓名、手机号、岗位、单位、备注</span>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索..."
+              className="input-field w-[200px] pl-9 h-[36px] text-[13px]"
+            />
+          </div>
         </div>
-        {attendees.length === 0 ? (
-          <div className="text-center py-12 text-[#6B7280]">
-            <p className="text-3xl mb-2">👥</p>
-            <p className="text-sm">暂无参会人，请上传 Excel 或手动添加</p>
+        {filteredAttendees.length === 0 ? (
+          <div className="py-16 text-center">
+            <Users className="w-10 h-10 text-[#9CA3AF] mx-auto mb-3" strokeWidth={1.5} />
+            <p className="text-[#5A6171] text-sm">
+              {attendees.length === 0 ? '暂无参会人，请上传 Excel 或手动添加' : '未找到匹配的参会人'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[#F9FAFB]">
+            <table className="w-full text-[13px]">
+              <thead className="table-header">
                 <tr>
-                  <th className="px-4 py-2.5 text-left font-medium text-[#6B7280]">姓名</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-[#6B7280]">手机号</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-[#6B7280]">岗位</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-[#6B7280]">单位</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-[#6B7280]">签到码</th>
-                  <th className="px-4 py-2.5 text-right font-medium text-[#6B7280]">操作</th>
+                  <th className="px-5 py-3 text-left font-medium text-[#5A6171]">姓名</th>
+                  <th className="px-5 py-3 text-left font-medium text-[#5A6171]">手机号</th>
+                  <th className="px-5 py-3 text-left font-medium text-[#5A6171]">岗位</th>
+                  <th className="px-5 py-3 text-left font-medium text-[#5A6171]">单位</th>
+                  <th className="px-5 py-3 text-left font-medium text-[#5A6171]">签到码</th>
+                  <th className="px-5 py-3 text-right font-medium text-[#5A6171]">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {attendees.map((a) => (
-                  <tr key={a.id} className="border-t border-[#E5E7EB] hover:bg-[#F9FAFB]">
-                    <td className="px-4 py-2.5 text-[#111827] font-medium">{a.name}</td>
-                    <td className="px-4 py-2.5 text-[#6B7280]">{a.phone || '-'}</td>
-                    <td className="px-4 py-2.5 text-[#6B7280]">{a.position || '-'}</td>
-                    <td className="px-4 py-2.5 text-[#6B7280]">{a.company || '-'}</td>
-                    <td className="px-4 py-2.5">
-                      <code className="text-xs bg-[#F3F4F6] px-1.5 py-0.5 rounded text-[#6B7280]">
+                {filteredAttendees.map((a) => (
+                  <tr key={a.id} className="table-row border-t border-[#E5E7EB]">
+                    <td className="px-5 py-3 text-[#1A1D24] font-semibold">{a.name}</td>
+                    <td className="px-5 py-3 text-[#5A6171]">{a.phone || '-'}</td>
+                    <td className="px-5 py-3 text-[#5A6171]">{a.position || '-'}</td>
+                    <td className="px-5 py-3 text-[#5A6171]">{a.company || '-'}</td>
+                    <td className="px-5 py-3">
+                      <code className="text-[11px] bg-[#F4F5F8] px-2 py-0.5 rounded-md text-[#5A6171] font-mono">
                         {a.signin_code.slice(0, 8)}...
                       </code>
                     </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <button onClick={() => handleEdit(a)} className="text-xs text-[#5B5FC7] hover:underline mr-3">编辑</button>
-                      <button onClick={() => handleDelete(a.id)} className="text-xs text-[#EF4444] hover:underline">删除</button>
+                    <td className="px-5 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => handleEdit(a)} className="p-1.5 rounded-lg hover:bg-[#EEEDFB] text-[#5B5FC7] transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(a.id)} className="p-1.5 rounded-lg hover:bg-[#FEE2E2] text-[#EF4444] transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
