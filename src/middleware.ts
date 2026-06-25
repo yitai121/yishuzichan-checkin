@@ -16,8 +16,10 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Subdomain routing
-  if (subdomain === 'checkin' || subdomain === 'sign' || subdomain === 'qr' || subdomain === 'qiandao') {
+  // Subdomain routing (case-insensitive)
+  const subdomainLower = subdomain.toLowerCase();
+  
+  if (subdomainLower === 'checkin' || subdomainLower === 'sign' || subdomainLower === 'qr' || subdomainLower === 'qiandao') {
     if (pathname === '/' || pathname === '') {
       const response = NextResponse.next();
       return addSecurityHeaders(response);
@@ -27,7 +29,7 @@ export function middleware(request: NextRequest) {
     return addSecurityHeaders(response);
   }
 
-  if (subdomain === 'admin' || subdomain === 'manage' || subdomain === 'dash' || subdomain === 'qiandaoHT') {
+  if (subdomainLower === 'admin' || subdomainLower === 'manage' || subdomainLower === 'dash' || subdomainLower === 'qiandaoht') {
     if (pathname === '/' || pathname === '') {
       const url = request.nextUrl.clone();
       url.pathname = '/admin';

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { CameraOff, RefreshCw, HelpCircle } from 'lucide-react';
+import { Camera, CameraOff, CheckCircle2, AlertCircle, XCircle, RefreshCw, HelpCircle, LogOut, ChevronDown } from 'lucide-react';
 
 interface Meeting {
   id: string;
@@ -10,423 +10,331 @@ interface Meeting {
   is_active: boolean;
 }
 
-interface CheckinResult {
-  type: 'success' | 'duplicate' | 'invalid';
-  name?: string;
-  position?: string;
-  company?: string;
-  checkin_at?: string;
-  checkin_number?: number;
-  message: string;
+interface Stats {
+  total: number;
+  checked_in: number;
 }
 
-type ScanStatus = 'scanning' | 'result';
+interface ScanResult {
+  status: 'success' | 'duplicate' | 'error';
+  message: string;
+  attendee?: {
+    name: string;
+    position: string;
+    company: string;
+  };
+  checkin_at?: string;
+}
 
-// Parse camera error and return friendly Chinese message
-function parseCameraError(err: unknown): { title: string; message: string; canRetry: boolean } {
-  const errStr = typeof err === 'string' ? err : (err as Error)?.message || '';
+// Camera error message mapping
+function getCameraErrorMessage(error: unknown): { title: string; message: string } {
+  const errorMsg = error instanceof Error ? error.message : String(error);
   
-  if (errStr.includes('NotFoundError') || errStr.includes('no device')) {
+  if (errorMsg.includes('NotFoundError') || errorMsg.includes('not found')) {
     return {
-      title: '未检测到摄像头',
-      message: '请确认设备已连接摄像头，或尝试切换前后摄像头',
-      canRetry: true,
+      title: '未检测到摄像头设备',
+      message: '请确保设备已连接摄像头，或使用后置摄像头重试'
     };
   }
-  if (errStr.includes('NotAllowedError') || errStr.includes('Permission')) {
+  if (errorMsg.includes('NotAllowedError') || errorMsg.includes('Permission')) {
     return {
-      title: '摄像头权限未授权',
-      message: '请在浏览器设置中允许访问摄像头，iOS 请在「设置 > Safari > 摄像头」中开启',
-      canRetry: true,
+      title: '请允许浏览器访问摄像头',
+      message: '点击浏览器地址栏左侧的锁形图标，允许摄像头权限后刷新页面'
     };
   }
-  if (errStr.includes('NotReadableError') || errStr.includes('occupied')) {
+  if (errorMsg.includes('NotReadableError') || errorMsg.includes('in use')) {
     return {
-      title: '摄像头被占用',
-      message: '摄像头可能被其他应用占用，请关闭后重试',
-      canRetry: true,
+      title: '摄像头被其他应用占用',
+      message: '请关闭其他使用摄像头的应用（如微信、腾讯会议）后重试'
     };
   }
   return {
     title: '摄像头初始化失败',
-    message: '请刷新页面重试，如问题持续请联系管理员',
-    canRetry: true,
+    message: '请刷新页面重试，或检查浏览器是否支持摄像头功能'
   };
 }
 
-export default function HomePage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [scannerUser, setScannerUser] = useState<string>('');
-  const [loginUsername, setLoginUsername] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+export default function ScanPage() {
+  const [isClient, setIsClient] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [scannerUser, setScannerUser] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [selectedMeeting, setSelectedMeeting] = useState<string>('');
-  const [stats, setStats] = useState({ checked_in: 0, total: 0 });
-  const [scanStatus, setScanStatus] = useState<ScanStatus>('scanning');
-  const [result, setResult] = useState<CheckinResult | null>(null);
-  const [cameraError, setCameraError] = useState<{ title: string; message: string; canRetry: boolean } | null>(null);
+  const [selectedMeeting, setSelectedMeeting] = useState('');
+  const [stats, setStats] = useState<Stats>({ total: 0, checked_in: 0 });
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const [cameraError, setCameraError] = useState<{ title: string; message: string } | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const isProcessingRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScanRef = useRef<string>('');
+  const lastScanTimeRef = useRef<number>(0);
 
-  // Check if already logged in
   useEffect(() => {
-    const savedUser = sessionStorage.getItem('scanner_auth');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        setIsAuthenticated(true);
-        setScannerUser(parsed.username);
-      } catch {
-        sessionStorage.removeItem('scanner_auth');
-      }
+    setIsClient(true);
+    const user = sessionStorage.getItem('scanner_user');
+    if (user) {
+      setIsLoggedIn(true);
+      setScannerUser(user);
     }
   }, []);
 
-  const handleLogin = async () => {
-    if (!loginUsername.trim() || !loginPassword.trim()) {
-      setLoginError('请输入账号和密码');
-      return;
-    }
+  // Fetch meetings
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    fetch('/api/meetings')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          setMeetings(d.data);
+          // Auto-select active meeting
+          const active = d.data.find((m: Meeting) => m.is_active);
+          if (active) setSelectedMeeting(active.id);
+          else if (d.data.length > 0) setSelectedMeeting(d.data[0].id);
+        }
+      })
+      .catch(() => {});
+  }, [isLoggedIn]);
 
+  // Fetch stats
+  useEffect(() => {
+    if (!selectedMeeting) return;
+    fetch(`/api/stats/${selectedMeeting}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setStats(d.data); })
+      .catch(() => {});
+  }, [selectedMeeting, result]);
+
+  // Start scanner
+  const startScanner = useCallback(async () => {
+    if (!selectedMeeting || scannerRef.current) return;
+    
+    setCameraError(null);
+    const scanner = new Html5Qrcode('scanner-region');
+    scannerRef.current = scanner;
+
+    try {
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          const now = Date.now();
+          if (decodedText === lastScanRef.current && now - lastScanTimeRef.current < 3000) return;
+          lastScanRef.current = decodedText;
+          lastScanTimeRef.current = now;
+          handleScan(decodedText);
+        },
+        () => {}
+      );
+      setScanning(true);
+    } catch (err) {
+      setCameraError(getCameraErrorMessage(err));
+      scannerRef.current = null;
+    }
+  }, [selectedMeeting]);
+
+  // Auto-start scanner when meeting selected
+  useEffect(() => {
+    if (isClient && isLoggedIn && selectedMeeting && !scannerRef.current && !cameraError) {
+      const timer = setTimeout(startScanner, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isClient, isLoggedIn, selectedMeeting, startScanner, cameraError]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleLogin = async () => {
     setLoginLoading(true);
     setLoginError('');
-
     try {
       const res = await fetch('/api/scanner-users/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: loginUsername.trim(), password: loginPassword }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-
       if (data.success) {
-        setIsAuthenticated(true);
-        setScannerUser(data.data.username);
-        sessionStorage.setItem('scanner_auth', JSON.stringify({ username: data.data.username, id: data.data.id }));
+        sessionStorage.setItem('scanner_user', username);
+        setIsLoggedIn(true);
+        setScannerUser(username);
       } else {
         setLoginError(data.error || '登录失败');
       }
     } catch {
-      setLoginError('网络错误，请重试');
-    } finally {
-      setLoginLoading(false);
+      setLoginError('网络错误');
     }
+    setLoginLoading(false);
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
+    sessionStorage.removeItem('scanner_user');
+    setIsLoggedIn(false);
     setScannerUser('');
-    setLoginUsername('');
-    setLoginPassword('');
-    sessionStorage.removeItem('scanner_auth');
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(() => {});
+      scannerRef.current = null;
+    }
   };
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    fetch('/api/meetings')
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success) {
-          setMeetings(res.data);
-          const active = res.data.find((m: Meeting) => m.is_active);
-          if (active) setSelectedMeeting(active.id);
-          else if (res.data.length > 0) setSelectedMeeting(res.data[0].id);
-        }
-      })
-      .catch(() => {});
-  }, [isAuthenticated]);
-
-  const fetchStats = useCallback(async () => {
-    if (!selectedMeeting) return;
+  const handleScan = async (code: string) => {
+    let parsed = { code, attendee_id: '' };
     try {
-      const res = await fetch(`/api/stats/${selectedMeeting}`).then((r) => r.json());
-      if (res.success) {
-        setStats({ checked_in: res.data.checked_in, total: res.data.total });
+      const p = JSON.parse(code);
+      if (p.code) parsed = p;
+    } catch { /* plain code */ }
+
+    try {
+      const res = await fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signin_code: parsed.code,
+          meeting_id: selectedMeeting,
+          attendee_id: parsed.attendee_id,
+        }),
+      });
+      const data: ScanResult = await res.json();
+      setResult(data);
+      // Auto-clear after 3s for success/duplicate
+      if (data.status !== 'error') {
+        setTimeout(() => setResult(null), 3000);
       }
     } catch {
-      // ignore
+      setResult({ status: 'error', message: '网络错误，请重试' });
     }
-  }, [selectedMeeting]);
+  };
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchStats();
-    const interval = setInterval(fetchStats, 5000);
-    return () => clearInterval(interval);
-  }, [fetchStats, isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !selectedMeeting) return;
-
-    const scanner = new Html5Qrcode('qr-reader');
-    scannerRef.current = scanner;
-
-    scanner
-      .start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        async (decodedText) => {
-          if (isProcessingRef.current) return;
-          isProcessingRef.current = true;
-
-          try {
-            // Try to parse as encrypted token first
-            let tokenToSend = decodedText;
-            let isEncryptedToken = false;
-
-            try {
-              const parsed = JSON.parse(decodedText);
-              // Legacy format: { code, attendee_id }
-              if (parsed.code) {
-                tokenToSend = parsed.code;
-              }
-            } catch {
-              // Not JSON - could be an encrypted token (base64url format with dots)
-              if (decodedText.includes('.') && decodedText.length > 20) {
-                isEncryptedToken = true;
-                tokenToSend = decodedText;
-              }
-            }
-
-            const requestBody = isEncryptedToken
-              ? { token: tokenToSend, meeting_id: selectedMeeting, device_info: navigator.userAgent }
-              : { signin_code: tokenToSend, meeting_id: selectedMeeting, device_info: navigator.userAgent };
-
-            // Retry logic for network errors (max 2 retries)
-            let res: Record<string, unknown> | null = null;
-            let lastError: Error | null = null;
-            for (let attempt = 0; attempt < 3; attempt++) {
-              try {
-                const response = await fetch('/api/checkin', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(requestBody),
-                  signal: AbortSignal.timeout(10000), // 10s timeout
-                });
-                res = await response.json();
-                lastError = null;
-                break;
-              } catch (err) {
-                lastError = err as Error;
-                if (attempt < 2) {
-                  await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1))); // 1s, 2s delay
-                }
-              }
-            }
-
-            if (lastError || !res) {
-              // Network error after all retries
-              setResult({
-                type: 'invalid',
-                message: '网络连接失败，请检查网络后重试',
-              });
-              setScanStatus('result');
-              timerRef.current = setTimeout(() => {
-                setScanStatus('scanning');
-                setResult(null);
-                isProcessingRef.current = false;
-              }, 3000);
-              return;
-            }
-
-            let checkinResult: CheckinResult;
-            const resData = res.data as Record<string, unknown> | undefined;
-            if (res.success) {
-              checkinResult = {
-                type: 'success',
-                name: resData?.name as string,
-                position: resData?.position as string,
-                company: resData?.company as string,
-                checkin_at: resData?.checkin_at as string,
-                checkin_number: resData?.checkin_number as number,
-                message: '签到成功',
-              };
-            } else if (res.type === 'duplicate') {
-              checkinResult = {
-                type: 'duplicate',
-                name: resData?.name as string,
-                position: resData?.position as string,
-                checkin_at: resData?.checkin_at as string,
-                message: '已签到',
-              };
-            } else {
-              checkinResult = {
-                type: 'invalid',
-                message: (res.error as string) || '签到码无效',
-              };
-            }
-
-            setResult(checkinResult);
-            setScanStatus('result');
-            fetchStats();
-
-            timerRef.current = setTimeout(() => {
-              setScanStatus('scanning');
-              setResult(null);
-              isProcessingRef.current = false;
-            }, 3000);
-          } catch {
-            isProcessingRef.current = false;
-          }
-        },
-        () => {}
-      )
-      .catch((err) => {
-        setCameraError(parseCameraError(err));
-      });
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      scannerRef.current?.stop().catch(() => {});
-    };
-  }, [selectedMeeting, fetchStats, isAuthenticated]);
-
-  const currentMeeting = meetings.find((m) => m.id === selectedMeeting);
   const progress = stats.total > 0 ? (stats.checked_in / stats.total) * 100 : 0;
 
+  if (!isClient) return null;
+
   // Login screen
-  if (!isAuthenticated) {
+  if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#0A0B0F] flex flex-col relative overflow-hidden">
-        {/* Ambient background glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-[-20%] left-[50%] translate-x-[-50%] w-[600px] h-[600px] rounded-full bg-[#5B5FC7]/8 blur-[120px]" />
-        </div>
-
-        <div className="flex-1 flex items-center justify-center px-5 relative z-10">
-          <div className="w-full max-w-sm">
-            {/* Brand */}
-            <div className="text-center mb-8">
-              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center shadow-lg shadow-[#5B5FC7]/20">
-                <span className="text-white text-xl font-bold">亿</span>
-              </div>
-              <h1 className="text-white text-xl font-semibold tracking-tight">亿数嘉年华签到</h1>
-              <p className="text-white/40 text-sm mt-2">请使用扫码账号登录</p>
+      <div className="min-h-screen bg-[#F8F9FB] flex items-center justify-center p-5">
+        <div className="w-full max-w-sm">
+          {/* Brand */}
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center shadow-lg shadow-[#5B5FC7]/20">
+              <span className="text-white text-xl font-bold">亿</span>
             </div>
-
-            {/* Login form */}
-            <div className="bg-white/[0.06] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-white/60 text-xs font-medium mb-2 uppercase tracking-wider">账号</label>
-                  <input
-                    type="text"
-                    value={loginUsername}
-                    onChange={(e) => setLoginUsername(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                    placeholder="输入用户名"
-                    className="w-full px-4 py-3 text-sm bg-white/[0.05] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/40 focus:border-[#5B5FC7]/40 transition-all"
-                    autoComplete="username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white/60 text-xs font-medium mb-2 uppercase tracking-wider">密码</label>
-                  <input
-                    type="password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                    placeholder="输入密码"
-                    className="w-full px-4 py-3 text-sm bg-white/[0.05] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/40 focus:border-[#5B5FC7]/40 transition-all"
-                    autoComplete="current-password"
-                  />
-                </div>
-
-                {loginError && (
-                  <div className="px-3 py-2 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20">
-                    <p className="text-[#EF4444] text-xs">{loginError}</p>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleLogin}
-                  disabled={loginLoading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-[#5B5FC7] to-[#6B6FD3] text-white text-sm font-medium rounded-xl shadow-lg shadow-[#5B5FC7]/20 hover:shadow-[#5B5FC7]/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loginLoading ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      登录中...
-                    </>
-                  ) : (
-                    '登录'
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <p className="text-center text-white/20 text-xs mt-6">
-              如需创建账号，请联系管理员
-            </p>
+            <h1 className="text-xl font-semibold text-[#1F2937]">亿数嘉年华签到</h1>
+            <p className="text-sm text-[#6B7280] mt-1">请使用扫码账号登录</p>
           </div>
+
+          {/* Login form */}
+          <div className="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] p-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#374151] mb-1.5">账号</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="请输入账号"
+                  className="w-full px-3.5 py-2.5 text-sm bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-[#1F2937] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/20 focus:border-[#5B5FC7] transition-all"
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#374151] mb-1.5">密码</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="请输入密码"
+                  className="w-full px-3.5 py-2.5 text-sm bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-[#1F2937] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/20 focus:border-[#5B5FC7] transition-all"
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                />
+              </div>
+
+              {loginError && (
+                <div className="px-3 py-2 rounded-lg bg-[#FEF2F2] border border-[#FCA5A5]">
+                  <p className="text-[#EF4444] text-xs">{loginError}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleLogin}
+                disabled={loginLoading}
+                className="w-full py-3 px-4 bg-[#5B5FC7] text-white text-sm font-medium rounded-xl hover:bg-[#4A4EB5] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loginLoading ? '登录中...' : '登录'}
+              </button>
+            </div>
+          </div>
+
+          <p className="text-center text-[#9CA3AF] text-xs mt-6">
+            如需创建账号，请联系管理员
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0B0F] flex flex-col relative overflow-hidden">
-      {/* Ambient background glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-20%] left-[50%] translate-x-[-50%] w-[600px] h-[600px] rounded-full bg-[#5B5FC7]/8 blur-[120px]" />
-        <div className="absolute bottom-[-10%] left-[20%] w-[300px] h-[300px] rounded-full bg-[#5B5FC7]/5 blur-[80px]" />
-      </div>
-
+    <div className="min-h-screen bg-[#F8F9FB] flex flex-col relative">
       {/* Header */}
-      <div className="relative z-10 px-5 pt-5 pb-3">
+      <div className="bg-white border-b border-[#E5E7EB] px-5 pt-4 pb-3">
         <div className="max-w-lg mx-auto">
           {/* Brand + User info */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center shadow-lg shadow-[#5B5FC7]/20">
-                <span className="text-white text-xs font-bold">亿</span>
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center">
+                <span className="text-white text-sm font-bold">亿</span>
               </div>
-              <span className="text-white/90 text-sm font-medium tracking-wide">亿数嘉年华</span>
+              <span className="text-[#1F2937] text-sm font-medium">亿数嘉年华</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-white/40 text-xs">{scannerUser}</span>
+              <span className="text-[#6B7280] text-xs">{scannerUser}</span>
               <button
                 onClick={handleLogout}
-                className="px-2 py-1 text-xs text-white/30 hover:text-white/60 border border-white/10 rounded-lg transition-colors"
+                className="p-1.5 text-[#9CA3AF] hover:text-[#6B7280] hover:bg-[#F3F4F6] rounded-lg transition-colors"
+                title="退出登录"
               >
-                退出
+                <LogOut className="w-4 h-4" strokeWidth={1.5} />
               </button>
             </div>
           </div>
 
-          {/* Meeting selector - glassmorphism */}
-          <div className="bg-white/[0.06] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-3">
-            <select
-              value={selectedMeeting}
-              onChange={(e) => setSelectedMeeting(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm bg-white/[0.05] border border-white/[0.08] rounded-xl text-white/90 focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/40 appearance-none cursor-pointer"
-              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
-            >
-              {meetings.length === 0 && <option value="">暂无会议</option>}
-              {meetings.map((m) => (
-                <option key={m.id} value={m.id} className="bg-[#1A1B23] text-white">
-                  {m.name} {m.is_active ? '(当前)' : ''}
-                </option>
-              ))}
-            </select>
+          {/* Meeting selector */}
+          <div className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl p-3">
+            <div className="relative">
+              <select
+                value={selectedMeeting}
+                onChange={(e) => setSelectedMeeting(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm bg-white border border-[#E5E7EB] rounded-lg text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/20 focus:border-[#5B5FC7] appearance-none cursor-pointer pr-8"
+              >
+                {meetings.length === 0 && <option value="">暂无会议</option>}
+                {meetings.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} {m.is_active ? '(进行中)' : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF] pointer-events-none" strokeWidth={1.5} />
+            </div>
 
             {/* Stats bar */}
             {selectedMeeting && (
               <div className="mt-3 flex items-center gap-3">
-                <div className="flex-1 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                <div className="flex-1 h-1.5 bg-[#E5E7EB] rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-[#5B5FC7] to-[#7B7FD7] rounded-full transition-all duration-700 ease-out"
+                    className="h-full bg-[#5B5FC7] rounded-full transition-all duration-700 ease-out"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-                <div className="text-xs text-white/50 tabular-nums shrink-0">
+                <div className="text-xs text-[#6B7280] tabular-nums shrink-0">
                   <span className="text-[#5B5FC7] font-semibold">{stats.checked_in}</span>
                   <span className="mx-0.5">/</span>
                   <span>{stats.total}</span>
@@ -438,24 +346,23 @@ export default function HomePage() {
       </div>
 
       {/* Scanner area */}
-      <div className="flex-1 flex flex-col items-center justify-center px-5 relative z-10">
+      <div className="flex-1 flex flex-col items-center justify-center px-5 py-6">
         {cameraError ? (
-          <div className="text-center p-8 bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-3xl max-w-sm w-full">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/[0.06] flex items-center justify-center">
-              <CameraOff className="w-8 h-8 text-white/40" strokeWidth={1.5} />
+          <div className="text-center p-6 bg-white border border-[#E5E7EB] rounded-2xl max-w-sm w-full shadow-sm">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-[#F3F4F6] flex items-center justify-center">
+              <CameraOff className="w-7 h-7 text-[#9CA3AF]" strokeWidth={1.5} />
             </div>
-            <h3 className="text-white/90 text-lg font-medium mb-2">{cameraError.title}</h3>
-            <p className="text-white/50 text-sm leading-relaxed mb-6">{cameraError.message}</p>
-            <div className="space-y-3">
+            <h3 className="text-[#1F2937] text-lg font-medium mb-2">{cameraError.title}</h3>
+            <p className="text-[#6B7280] text-sm leading-relaxed mb-5">{cameraError.message}</p>
+            <div className="space-y-2.5">
               <button
                 onClick={() => {
                   setCameraError(null);
-                  // Re-trigger camera initialization by toggling selectedMeeting
                   const temp = selectedMeeting;
                   setSelectedMeeting('');
                   setTimeout(() => setSelectedMeeting(temp), 100);
                 }}
-                className="w-full py-3 px-4 bg-gradient-to-r from-[#5B5FC7] to-[#6B6FD3] text-white text-sm font-medium rounded-xl shadow-lg shadow-[#5B5FC7]/20 hover:shadow-[#5B5FC7]/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 bg-[#5B5FC7] text-white text-sm font-medium rounded-lg hover:bg-[#4A4EB5] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" strokeWidth={2} />
                 重新尝试
@@ -464,152 +371,95 @@ export default function HomePage() {
                 href="https://support.google.com/chrome/answer/2693767"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-2 px-4 text-white/40 text-xs hover:text-white/60 transition-colors flex items-center justify-center gap-1.5"
+                className="w-full py-2 px-4 text-[#6B7280] text-xs hover:text-[#5B5FC7] transition-colors flex items-center justify-center gap-1.5"
               >
                 <HelpCircle className="w-3.5 h-3.5" strokeWidth={1.5} />
-                如何授权摄像头？
+                如何授权？查看帮助
               </a>
             </div>
           </div>
-        ) : !selectedMeeting ? (
-          <div className="text-center p-8 bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-3xl max-w-sm w-full">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/[0.06] flex items-center justify-center">
-              <svg className="w-8 h-8 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-              </svg>
-            </div>
-            <p className="text-white/50 text-sm">请先在后台创建会议</p>
-          </div>
         ) : (
           <>
-            {/* Scanner frame */}
-            <div className="relative w-full max-w-xs aspect-square">
-              {/* Corner markers */}
-              <div className="absolute inset-0 pointer-events-none z-10">
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-[#5B5FC7] rounded-tl-lg" />
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-[#5B5FC7] rounded-tr-lg" />
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-[#5B5FC7] rounded-bl-lg" />
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-[#5B5FC7] rounded-br-lg" />
-              </div>
-
-              {/* Scanning line animation */}
-              {scanStatus === 'scanning' && (
-                <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden rounded-xl">
-                  <div className="absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent via-[#5B5FC7] to-transparent animate-scan-line opacity-60" />
+            {/* Scanner viewport */}
+            <div className="w-full max-w-sm aspect-square rounded-2xl overflow-hidden bg-black relative border-4 border-white shadow-lg">
+              <div id="scanner-region" className="w-full h-full" />
+              {!scanning && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#F3F4F6]">
+                  <Camera className="w-10 h-10 text-[#9CA3AF] animate-pulse" strokeWidth={1.5} />
                 </div>
               )}
-
-              <div
-                id="qr-reader"
-                className="w-full h-full rounded-xl overflow-hidden"
-                style={{ visibility: scanStatus === 'scanning' ? 'visible' : 'hidden' }}
-              />
-
-              {/* Dark overlay when showing result */}
-              {scanStatus === 'result' && (
-                <div className="absolute inset-0 bg-[#0A0B23]/80 backdrop-blur-sm rounded-xl" />
+              {/* Scan line animation */}
+              {scanning && (
+                <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-0.5 bg-[#5B5FC7] shadow-[0_0_8px_#5B5FC7] animate-pulse" />
               )}
             </div>
 
-            {scanStatus === 'scanning' && (
-              <p className="mt-6 text-sm text-white/30 font-light tracking-wide">将二维码放入框内扫描</p>
-            )}
+            {/* Hint */}
+            <p className="mt-4 text-[#6B7280] text-sm text-center">
+              将二维码对准摄像头自动识别
+            </p>
           </>
         )}
+      </div>
 
-        {/* Result overlay */}
-        {scanStatus === 'result' && result && (
-          <div className="absolute inset-0 flex items-center justify-center p-5 z-50 animate-fade-in">
-            <div
-              className={`w-full max-w-sm rounded-3xl p-8 text-center backdrop-blur-2xl border shadow-2xl ${
-                result.type === 'success'
-                  ? 'bg-[#10B981]/15 border-[#10B981]/20 shadow-[#10B981]/10'
-                  : result.type === 'duplicate'
-                  ? 'bg-[#F59E0B]/15 border-[#F59E0B]/20 shadow-[#F59E0B]/10'
-                  : 'bg-[#EF4444]/15 border-[#EF4444]/20 shadow-[#EF4444]/10'
-              }`}
-            >
-              {/* Icon */}
-              <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
-                result.type === 'success'
-                  ? 'bg-[#10B981]/20'
-                  : result.type === 'duplicate'
-                  ? 'bg-[#F59E0B]/20'
-                  : 'bg-[#EF4444]/20'
+      {/* Result overlay */}
+      {result && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/40 backdrop-blur-sm animate-[fadeIn_200ms_ease-out]">
+          <div className={`w-full max-w-sm rounded-2xl p-6 shadow-xl animate-[slideUp_300ms_ease-out] ${
+            result.status === 'success' ? 'bg-[#ECFDF5] border border-[#A7F3D0]' :
+            result.status === 'duplicate' ? 'bg-[#FFFBEB] border border-[#FDE68A]' :
+            'bg-[#FEF2F2] border border-[#FCA5A5]'
+          }`}>
+            <div className="flex flex-col items-center text-center">
+              {result.status === 'success' && (
+                <CheckCircle2 className="w-14 h-14 text-[#10B981] mb-3" strokeWidth={1.5} />
+              )}
+              {result.status === 'duplicate' && (
+                <AlertCircle className="w-14 h-14 text-[#F59E0B] mb-3" strokeWidth={1.5} />
+              )}
+              {result.status === 'error' && (
+                <XCircle className="w-14 h-14 text-[#EF4444] mb-3" strokeWidth={1.5} />
+              )}
+              <h3 className={`text-lg font-semibold mb-1 ${
+                result.status === 'success' ? 'text-[#065F46]' :
+                result.status === 'duplicate' ? 'text-[#92400E]' :
+                'text-[#991B1B]'
               }`}>
-                {result.type === 'success' && (
-                  <svg className="w-8 h-8 text-[#10B981]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                )}
-                {result.type === 'duplicate' && (
-                  <svg className="w-8 h-8 text-[#F59E0B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                  </svg>
-                )}
-                {result.type === 'invalid' && (
-                  <svg className="w-8 h-8 text-[#EF4444]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                )}
-              </div>
-
-              {/* Title */}
-              <h2 className={`text-2xl font-bold mb-1 tracking-tight ${
-                result.type === 'success' ? 'text-[#10B981]' : result.type === 'duplicate' ? 'text-[#F59E0B]' : 'text-[#EF4444]'
+                {result.status === 'success' ? '签到成功' :
+                 result.status === 'duplicate' ? '已签到' :
+                 '签到失败'}
+              </h3>
+              <p className={`text-sm mb-3 ${
+                result.status === 'success' ? 'text-[#059669]' :
+                result.status === 'duplicate' ? 'text-[#D97706]' :
+                'text-[#DC2626]'
               }`}>
-                {result.type === 'success' ? '签到成功' : result.type === 'duplicate' ? '已签到' : '签到码无效'}
-              </h2>
-
-              {/* Name */}
-              {result.name && (
-                <p className="text-white/90 text-xl font-semibold mt-3">{result.name}</p>
-              )}
-
-              {/* Position & Company */}
-              {result.position && (
-                <p className="text-white/40 text-sm mt-1">{result.position}</p>
-              )}
-              {result.company && (
-                <p className="text-white/40 text-sm">{result.company}</p>
-              )}
-
-              {/* Time */}
-              {result.checkin_at && (
-                <p className="text-white/25 text-xs mt-4 tabular-nums">
-                  {new Date(result.checkin_at).toLocaleString('zh-CN', {
-                    timeZone: 'Asia/Shanghai',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })}
-                </p>
-              )}
-
-              {/* Checkin number */}
-              {result.type === 'success' && result.checkin_number && (
-                <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#10B981]/10 border border-[#10B981]/20">
-                  <span className="text-[#10B981] text-xs font-medium">第 {result.checkin_number} 位签到</span>
+                {result.message}
+              </p>
+              {result.attendee && (
+                <div className={`w-full rounded-xl p-3 ${
+                  result.status === 'success' ? 'bg-white/60' :
+                  result.status === 'duplicate' ? 'bg-white/60' :
+                  'bg-white/60'
+                }`}>
+                  <p className="text-[#1F2937] font-medium text-base">{result.attendee.name}</p>
+                  {result.attendee.company && (
+                    <p className="text-[#6B7280] text-xs mt-0.5">{result.attendee.company}</p>
+                  )}
+                  {result.attendee.position && (
+                    <p className="text-[#6B7280] text-xs">{result.attendee.position}</p>
+                  )}
+                  {result.checkin_at && (
+                    <p className="text-[#9CA3AF] text-xs mt-1">
+                      {new Date(result.checkin_at).toLocaleString('zh-CN')}
+                    </p>
+                  )}
                 </div>
-              )}
-
-              {/* Invalid message */}
-              {result.type === 'invalid' && (
-                <p className="text-white/30 text-sm mt-2">{result.message}</p>
               )}
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="relative z-10 text-center py-4">
-        <p className="text-[10px] text-white/15 tracking-widest uppercase">
-          {currentMeeting?.name || '请选择会议'}
-        </p>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
