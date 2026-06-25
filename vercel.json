@@ -7,7 +7,7 @@
   "regions": ["hnd1"],
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "has": [
         {
           "type": "host",
