@@ -19,6 +19,12 @@ export function middleware(request: NextRequest) {
   // Subdomain routing (case-insensitive)
   const subdomainLower = subdomain.toLowerCase();
   
+  // Allow API routes to pass through
+  if (pathname.startsWith('/api/')) {
+    const response = NextResponse.next();
+    return addSecurityHeaders(response);
+  }
+
   if (subdomainLower === 'checkin' || subdomainLower === 'sign' || subdomainLower === 'qr' || subdomainLower === 'qiandao') {
     // Allow /screen to pass through
     if (pathname === '/screen' || pathname === '/screen.html') {
