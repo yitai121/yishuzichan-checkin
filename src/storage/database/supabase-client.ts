@@ -1,6 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { execSync } from 'child_process';
-import { getReportBuffer, createWrappedFetch } from 'coze-coding-dev-sdk';
 
 let envLoaded = false;
 
@@ -12,33 +10,34 @@ interface SupabaseCredentials {
 function loadEnv(): void {
   if (envLoaded) return;
 
-  // Check if COZE_ prefixed env vars are already set (coze platform's database)
-  if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
-    envLoaded = true;
-    return;
-  }
-
-  // Check if standard env vars are set
+  // In production (Vercel), env vars are set directly via platform settings
+  // Just check if they exist
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     envLoaded = true;
     return;
   }
 
-  try {
-    try {
-      require('dotenv').config();
-      if ((process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) ||
-          (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
-        envLoaded = true;
-        return;
-      }
-    } catch {
-      // dotenv not available
+  // In coze sandbox, try to load from coze platform
+  if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
+    // Map COZE_ prefixed vars to standard names
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.COZE_SUPABASE_URL;
     }
+    if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.COZE_SUPABASE_ANON_KEY;
+    }
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.COZE_SUPABASE_SERVICE_ROLE_KEY) {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+    }
+    envLoaded = true;
+    return;
+  }
 
+  // Try loading via coze workload identity (sandbox only)
+  try {
+    const { execSync } = require('child_process');
     const pythonCode = `
-import os
-import sys
+import os, sys
 try:
     from coze_workload_identity import Client
     client = Client()
@@ -49,7 +48,6 @@ try:
 except Exception as e:
     print(f"# Error: {e}", file=sys.stderr)
 `;
-
     const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
       encoding: 'utf-8',
       timeout: 10000,
@@ -73,7 +71,7 @@ except Exception as e:
       }
     }
 
-    // Map COZE_ prefixed vars to standard names if standard names are not set
+    // Map COZE_ prefixed vars to standard names
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.COZE_SUPABASE_URL) {
       process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.COZE_SUPABASE_URL;
     }
@@ -86,7 +84,8 @@ except Exception as e:
 
     envLoaded = true;
   } catch {
-    // Silently fail
+    // Not in coze sandbox, env vars should be set directly
+    envLoaded = true;
   }
 }
 
@@ -99,10 +98,10 @@ function getSupabaseCredentials(): SupabaseCredentials {
   const anonKey = process.env.COZE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url) {
-    throw new Error('Supabase URL is not set (COZE_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL)');
+    throw new Error('Supabase URL not configured. Set NEXT_PUBLIC_SUPABASE_URL in environment variables.');
   }
   if (!anonKey) {
-    throw new Error('Supabase anon key is not set (COZE_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY)');
+    throw new Error('Supabase anon key not configured. Set NEXT_PUBLIC_SUPABASE_ANON_KEY in environment variables.');
   }
 
   return { url, anonKey };
@@ -124,21 +123,20 @@ function getSupabaseClient(token?: string): SupabaseClient {
     key = serviceRoleKey ?? anonKey;
   }
 
-  const globalOptions: Record<string, any> = {};
-  if (token) {
-    globalOptions.headers = { Authorization: `Bearer ${token}` };
-  }
+  // Try to set up reporting (coze sandbox only, safe to fail in production)
+  let customFetch: any;
   try {
+    const { getReportBuffer, createWrappedFetch } = require('coze-coding-dev-sdk');
     const buffer = getReportBuffer();
     if (buffer) {
-      globalOptions.fetch = createWrappedFetch(buffer, 'supabase');
+      customFetch = createWrappedFetch(buffer, 'supabase');
     }
   } catch {
-    // Silent — reporting setup failure should not block client creation
+    // Not in coze sandbox, use default fetch
   }
 
   return createClient(url, key, {
-    global: globalOptions,
+    global: customFetch ? { fetch: customFetch } : {},
     db: {
       timeout: 60000,
     },

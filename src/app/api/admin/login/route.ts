@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execSync } from 'child_process';
 
 let envLoaded = false;
 
 function loadAdminPassword(): void {
   if (envLoaded || process.env.ADMIN_PASSWORD) {
+    envLoaded = true;
     return;
   }
 
+  // Try loading via coze workload identity (sandbox only)
   try {
+    const { execSync } = require('child_process');
     const pythonCode = `
-import os
-import sys
+import os, sys
 try:
     from coze_workload_identity import Client
     client = Client()
@@ -22,7 +23,6 @@ try:
 except Exception as e:
     print(f"# Error: {e}", file=sys.stderr)
 `;
-
     const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
       encoding: 'utf-8',
       timeout: 10000,
@@ -47,7 +47,8 @@ except Exception as e:
     }
     envLoaded = true;
   } catch {
-    // Silently fail
+    // Not in coze sandbox, ADMIN_PASSWORD should be set directly via env vars
+    envLoaded = true;
   }
 }
 
@@ -58,11 +59,18 @@ export async function POST(request: NextRequest) {
     const { password } = body as { password?: string };
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
-    if (password === adminPassword) {
-      return NextResponse.json({ success: true });
+    if (!password || password !== adminPassword) {
+      return NextResponse.json(
+        { success: false, error: '密码错误' },
+        { status: 401 }
+      );
     }
-    return NextResponse.json({ success: false, error: '密码错误' }, { status: 401 });
+
+    return NextResponse.json({ success: true });
   } catch {
-    return NextResponse.json({ success: false, error: '请求失败' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: '登录失败' },
+      { status: 500 }
+    );
   }
 }
