@@ -20,6 +20,11 @@ export function middleware(request: NextRequest) {
   const subdomainLower = subdomain.toLowerCase();
   
   if (subdomainLower === 'checkin' || subdomainLower === 'sign' || subdomainLower === 'qr' || subdomainLower === 'qiandao') {
+    // Allow /screen to pass through
+    if (pathname === '/screen' || pathname === '/screen.html') {
+      const response = NextResponse.next();
+      return addSecurityHeaders(response);
+    }
     if (pathname === '/' || pathname === '') {
       const response = NextResponse.next();
       return addSecurityHeaders(response);
