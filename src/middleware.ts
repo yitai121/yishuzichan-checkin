@@ -20,7 +20,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Subdomain routing
-  if (subdomain === 'checkin' || subdomain === 'sign' || subdomain === 'qr') {
+  if (subdomain === 'checkin' || subdomain === 'sign' || subdomain === 'qr' || subdomain === 'qiandao') {
     // Scanning page - only allow root path
     if (pathname === '/' || pathname === '') {
       return NextResponse.next();
@@ -29,7 +29,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  if (subdomain === 'admin' || subdomain === 'manage' || subdomain === 'dash') {
+  if (subdomain === 'admin' || subdomain === 'manage' || subdomain === 'dash' || subdomain === 'qiandaoHT') {
     // Admin page - rewrite to /admin
     if (pathname === '/' || pathname === '') {
       const url = request.nextUrl.clone();
