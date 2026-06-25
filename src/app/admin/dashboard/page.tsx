@@ -79,6 +79,15 @@ export default function DashboardPage() {
 
   const maxBucketCount = stats ? Math.max(...stats.buckets.map((b) => b.count), 1) : 1;
 
+  // Format duration with defensive checks for invalid data
+  function formatDuration(minutes: number | null): string {
+    if (minutes === null || minutes < 0 || !Number.isFinite(minutes)) return '--';
+    if (minutes < 60) return `${Math.round(minutes)} 分钟`;
+    if (minutes < 1440) return `${(minutes / 60).toFixed(1)} 小时`;
+    if (minutes < 43200) return `${(minutes / 1440).toFixed(1)} 天`;
+    return '数据异常'; // 30 days+ is likely dirty data
+  }
+
   if (!selectedMeeting) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -105,7 +114,7 @@ export default function DashboardPage() {
     { label: '总人数', value: stats.total, icon: Users, accent: '#5B5FC7' },
     { label: '已签到', value: stats.checked_in, icon: CheckCircle2, accent: '#10B981' },
     { label: '签到率', value: `${stats.rate}%`, icon: TrendingUp, accent: '#5B5FC7' },
-    { label: '平均时长', value: stats.avg_minutes !== null ? `${stats.avg_minutes}min` : '-', icon: Clock, accent: '#F59E0B' },
+    { label: '平均时长', value: formatDuration(stats.avg_minutes), icon: Clock, accent: '#F59E0B' },
   ];
 
   return (

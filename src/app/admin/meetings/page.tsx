@@ -91,12 +91,10 @@ export default function MeetingsPage() {
   };
 
   const handleActivate = async (id: string) => {
-    const res = await fetch(`/api/meetings/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: true }),
+    const res = await fetch(`/api/meetings/${id}/activate`, {
+      method: 'PATCH',
     }).then((r) => r.json());
-    if (res.success) { showToast('已设为当前会议'); fetchMeetings(); }
+    if (res.success) { showToast('会议已激活'); fetchMeetings(); }
     else { showToast(res.error || '操作失败'); }
   };
 
@@ -164,13 +162,13 @@ export default function MeetingsPage() {
           meetings.map((m, i) => (
             <div
               key={m.id}
-              className={`card p-4 flex items-center justify-between animate-stagger-in ${m.is_active ? 'ring-1 ring-[#5B5FC7]/15' : ''}`}
+              className={`card p-4 flex items-center justify-between animate-stagger-in ${m.is_active ? 'border-l-4 border-l-[#10B981] ring-1 ring-[#10B981]/15' : ''}`}
               style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="text-[13px] font-semibold text-[#0F1117] truncate">{m.name}</h3>
-                  {m.is_active && <span className="badge badge-brand">当前</span>}
+                  {m.is_active && <span className="badge badge-success">进行中</span>}
                 </div>
                 <div className="flex items-center gap-3 mt-1">
                   {m.location && (
@@ -187,9 +185,13 @@ export default function MeetingsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0 ml-3">
-                {!m.is_active && (
-                  <button onClick={() => handleActivate(m.id)} className="btn-secondary text-[11px] px-2.5 py-1">
+                {!m.is_active ? (
+                  <button onClick={() => handleActivate(m.id)} className="btn-primary text-[11px] px-2.5 py-1">
                     <Zap className="w-3 h-3" />激活
+                  </button>
+                ) : (
+                  <button disabled className="btn-secondary text-[11px] px-2.5 py-1 opacity-50 cursor-not-allowed">
+                    <Zap className="w-3 h-3" />已激活
                   </button>
                 )}
                 <button onClick={() => handleEdit(m)} className="btn-secondary text-[11px] px-2.5 py-1">

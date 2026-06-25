@@ -37,11 +37,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ mee
     let avgMinutes: number | null = null;
     if (meeting?.start_at && checkins && checkins.length > 0) {
       const startMs = new Date(meeting.start_at).getTime();
-      const diffs = checkins
-        .map((c) => new Date(c.checkin_at).getTime() - startMs)
-        .filter((d) => d > 0);
-      if (diffs.length > 0) {
-        avgMinutes = Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length / 60000);
+      const nowMs = Date.now();
+      
+      // Only calculate if meeting start is in the past and within 30 days
+      if (startMs < nowMs && (nowMs - startMs) < 30 * 24 * 60 * 60 * 1000) {
+        const diffs = checkins
+          .map((c) => new Date(c.checkin_at).getTime() - startMs)
+          .filter((d) => d > 0 && d < 30 * 24 * 60 * 60 * 1000); // Filter out diffs > 30 days
+        if (diffs.length > 0) {
+          avgMinutes = Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length / 60000);
+        }
       }
     }
 

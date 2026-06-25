@@ -14,12 +14,14 @@ import {
   Loader2,
   ScanLine,
   ChevronRight,
+  History,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/admin/dashboard', label: '签到看板', icon: LayoutDashboard },
   { href: '/admin/meetings', label: '会议管理', icon: Calendar },
   { href: '/admin/attendees', label: '参会名单', icon: Users },
+  { href: '/admin/checkins', label: '签到记录', icon: History },
   { href: '/admin/qrcodes', label: '二维码', icon: QrCode },
   { href: '/admin/scanner-users', label: '扫码账号', icon: ScanLine },
   { href: '/admin/export', label: '数据导出', icon: Download },

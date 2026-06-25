@@ -2,10 +2,20 @@
 
 import { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Plus, Upload, Loader2, X, Pencil, Trash2, Users, Search } from 'lucide-react';
+import { Plus, Upload, Loader2, X, Pencil, Trash2, Users, Search, CheckCircle, Clock, UserCheck } from 'lucide-react';
 
 interface Meeting { id: string; name: string; is_active: boolean; }
-interface Attendee { id: string; name: string; phone: string | null; position: string | null; company: string | null; note: string | null; signin_code: string; }
+interface Attendee { 
+  id: string; 
+  name: string; 
+  phone: string | null; 
+  position: string | null; 
+  company: string | null; 
+  note: string | null; 
+  signin_code: string;
+  checked_in: boolean;
+  checkin_at: string | null;
+}
 interface PreviewRow { name: string; phone?: string; position?: string; company?: string; note?: string; }
 
 export default function AttendeesPage() {
@@ -41,10 +51,30 @@ export default function AttendeesPage() {
 
   useEffect(() => {
     if (!selectedMeeting) return;
-    fetch(`/api/attendees?meeting_id=${selectedMeeting}`).then((r) => r.json()).then((res) => {
-      if (res.success) setAttendees(res.data);
-    }).catch(() => {});
+    fetchAttendees();
   }, [selectedMeeting]);
+
+  const fetchAttendees = async () => {
+    const res = await fetch(`/api/attendees?meeting_id=${selectedMeeting}`).then((r) => r.json());
+    if (res.success) {
+      // Fetch check-in status for each attendee
+      const attendeesWithStatus = await Promise.all(
+        res.data.map(async (a: Attendee) => {
+          try {
+            const checkinRes = await fetch(`/api/checkin?attendee_id=${a.id}&meeting_id=${selectedMeeting}`).then((r) => r.json());
+            return {
+              ...a,
+              checked_in: checkinRes.success && checkinRes.data?.checked_in,
+              checkin_at: checkinRes.success ? checkinRes.data?.checkin_at : null,
+            };
+          } catch {
+            return { ...a, checked_in: false, checkin_at: null };
+          }
+        })
+      );
+      setAttendees(attendeesWithStatus);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -75,7 +105,7 @@ export default function AttendeesPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/attendees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meeting_id: selectedMeeting, attendees: previewData }) }).then((r) => r.json());
-      if (res.success) { showToast(`成功导入 ${res.count} 人`); setShowPreview(false); setPreviewData([]); const r2 = await fetch(`/api/attendees?meeting_id=${selectedMeeting}`).then((r) => r.json()); if (r2.success) setAttendees(r2.data); }
+      if (res.success) { showToast(`成功导入 ${res.count} 人`); setShowPreview(false); setPreviewData([]); fetchAttendees(); }
       else { showToast(res.error || '导入失败'); }
     } catch { showToast('网络错误'); }
     setLoading(false);
@@ -84,7 +114,7 @@ export default function AttendeesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('确定删除该参会人？')) return;
     const res = await fetch(`/api/attendees/${id}`, { method: 'DELETE' }).then((r) => r.json());
-    if (res.success) { showToast('已删除'); setAttendees((prev) => prev.filter((a) => a.id !== id)); }
+    if (res.success) { showToast('已删除'); fetchAttendees(); }
     else { showToast(res.error || '删除失败'); }
   };
 
@@ -94,7 +124,7 @@ export default function AttendeesPage() {
     e.preventDefault(); if (!editingAttendee) return; setLoading(true);
     try {
       const res = await fetch(`/api/attendees/${editingAttendee.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editName, phone: editPhone || null, position: editPosition || null, company: editCompany || null, note: editNote || null }) }).then((r) => r.json());
-      if (res.success) { showToast('已更新'); setShowEditForm(false); setAttendees((prev) => prev.map((a) => a.id === editingAttendee.id ? { ...a, name: editName, phone: editPhone || null, position: editPosition || null, company: editCompany || null, note: editNote || null } : a)); }
+      if (res.success) { showToast('已更新'); setShowEditForm(false); fetchAttendees(); }
       else { showToast(res.error || '更新失败'); }
     } catch { showToast('网络错误'); }
     setLoading(false);
@@ -106,10 +136,41 @@ export default function AttendeesPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/attendees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meeting_id: selectedMeeting, attendees: [{ name: name.trim() }] }) }).then((r) => r.json());
-      if (res.success) { showToast('已添加'); const r2 = await fetch(`/api/attendees?meeting_id=${selectedMeeting}`).then((r) => r.json()); if (r2.success) setAttendees(r2.data); }
+      if (res.success) { showToast('已添加'); fetchAttendees(); }
       else { showToast(res.error || '添加失败'); }
     } catch { showToast('网络错误'); }
     setLoading(false);
+  };
+
+  const handleManualCheckin = async (attendeeId: string) => {
+    if (!confirm('确定要为此人现场补签？')) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/checkin', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ attendee_id: attendeeId, meeting_id: selectedMeeting, manual: true }) 
+      }).then((r) => r.json());
+      if (res.success) { showToast('已补签'); fetchAttendees(); }
+      else { showToast(res.error || '补签失败'); }
+    } catch { showToast('网络错误'); }
+    setLoading(false);
+  };
+
+  const formatRelativeTime = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins} 分钟前`;
+    if (diffHours < 24) return `${diffHours} 小时前`;
+    if (diffDays < 7) return `${diffDays} 天前`;
+    return date.toLocaleDateString('zh-CN');
   };
 
   const filtered = attendees.filter((a) => { if (!searchQuery) return true; const q = searchQuery.toLowerCase(); return a.name.toLowerCase().includes(q) || (a.phone && a.phone.includes(q)) || (a.company && a.company.toLowerCase().includes(q)); });
@@ -179,17 +240,46 @@ export default function AttendeesPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[12px]">
-              <thead className="table-header"><tr><th className="px-4 py-2.5 text-left font-medium text-[#525866]">姓名</th><th className="px-4 py-2.5 text-left font-medium text-[#525866]">手机号</th><th className="px-4 py-2.5 text-left font-medium text-[#525866]">岗位</th><th className="px-4 py-2.5 text-left font-medium text-[#525866]">单位</th><th className="px-4 py-2.5 text-right font-medium text-[#525866]">操作</th></tr></thead>
+              <thead className="table-header">
+                <tr>
+                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">姓名</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">手机号</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">单位</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">签到状态</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">签到时间</th>
+                  <th className="px-4 py-2.5 text-right font-medium text-[#525866]">操作</th>
+                </tr>
+              </thead>
               <tbody>{filtered.map((a) => (
                 <tr key={a.id} className="table-row border-t border-[#E5E7EB]">
                   <td className="px-4 py-2.5 text-[#0F1117] font-semibold">{a.name}</td>
                   <td className="px-4 py-2.5 text-[#525866]">{a.phone || '-'}</td>
-                  <td className="px-4 py-2.5 text-[#525866]">{a.position || '-'}</td>
                   <td className="px-4 py-2.5 text-[#525866]">{a.company || '-'}</td>
-                  <td className="px-4 py-2.5 text-right"><div className="flex items-center justify-end gap-0.5">
-                    <button onClick={() => handleEdit(a)} className="p-1 rounded hover:bg-[#EEEDFB] text-[#5B5FC7] transition-colors"><Pencil className="w-3 h-3" /></button>
-                    <button onClick={() => handleDelete(a.id)} className="p-1 rounded hover:bg-[#FEE2E2] text-[#EF4444] transition-colors"><Trash2 className="w-3 h-3" /></button>
-                  </div></td>
+                  <td className="px-4 py-2.5">
+                    {a.checked_in ? (
+                      <span className="badge badge-success inline-flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" strokeWidth={1.5} />已签到
+                      </span>
+                    ) : (
+                      <span className="badge badge-warning inline-flex items-center gap-1">
+                        <Clock className="w-3 h-3" strokeWidth={1.5} />未签到
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-[#525866]" title={a.checkin_at ? new Date(a.checkin_at).toLocaleString('zh-CN') : ''}>
+                    {formatRelativeTime(a.checkin_at)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <div className="flex items-center justify-end gap-0.5">
+                      {!a.checked_in && (
+                        <button onClick={() => handleManualCheckin(a.id)} className="p-1 rounded hover:bg-[#ECFDF5] text-[#10B981] transition-colors" title="现场补签">
+                          <UserCheck className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button onClick={() => handleEdit(a)} className="p-1 rounded hover:bg-[#EEEDFB] text-[#5B5FC7] transition-colors"><Pencil className="w-3 h-3" /></button>
+                      <button onClick={() => handleDelete(a.id)} className="p-1 rounded hover:bg-[#FEE2E2] text-[#EF4444] transition-colors"><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>

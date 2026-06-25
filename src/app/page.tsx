@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { CameraOff, RefreshCw, HelpCircle } from 'lucide-react';
 
 interface Meeting {
   id: string;
@@ -21,6 +22,38 @@ interface CheckinResult {
 
 type ScanStatus = 'scanning' | 'result';
 
+// Parse camera error and return friendly Chinese message
+function parseCameraError(err: unknown): { title: string; message: string; canRetry: boolean } {
+  const errStr = typeof err === 'string' ? err : (err as Error)?.message || '';
+  
+  if (errStr.includes('NotFoundError') || errStr.includes('no device')) {
+    return {
+      title: '未检测到摄像头',
+      message: '请确认设备已连接摄像头，或尝试切换前后摄像头',
+      canRetry: true,
+    };
+  }
+  if (errStr.includes('NotAllowedError') || errStr.includes('Permission')) {
+    return {
+      title: '摄像头权限未授权',
+      message: '请在浏览器设置中允许访问摄像头，iOS 请在「设置 > Safari > 摄像头」中开启',
+      canRetry: true,
+    };
+  }
+  if (errStr.includes('NotReadableError') || errStr.includes('occupied')) {
+    return {
+      title: '摄像头被占用',
+      message: '摄像头可能被其他应用占用，请关闭后重试',
+      canRetry: true,
+    };
+  }
+  return {
+    title: '摄像头初始化失败',
+    message: '请刷新页面重试，如问题持续请联系管理员',
+    canRetry: true,
+  };
+}
+
 export default function HomePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [scannerUser, setScannerUser] = useState<string>('');
@@ -33,7 +66,7 @@ export default function HomePage() {
   const [stats, setStats] = useState({ checked_in: 0, total: 0 });
   const [scanStatus, setScanStatus] = useState<ScanStatus>('scanning');
   const [result, setResult] = useState<CheckinResult | null>(null);
-  const [cameraError, setCameraError] = useState<string>('');
+  const [cameraError, setCameraError] = useState<{ title: string; message: string; canRetry: boolean } | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isProcessingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -243,7 +276,7 @@ export default function HomePage() {
         () => {}
       )
       .catch((err) => {
-        setCameraError(typeof err === 'string' ? err : '无法访问摄像头，请授权后重试');
+        setCameraError(parseCameraError(err));
       });
 
     return () => {
@@ -409,12 +442,34 @@ export default function HomePage() {
         {cameraError ? (
           <div className="text-center p-8 bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-3xl max-w-sm w-full">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/[0.06] flex items-center justify-center">
-              <svg className="w-8 h-8 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-              </svg>
+              <CameraOff className="w-8 h-8 text-white/40" strokeWidth={1.5} />
             </div>
-            <p className="text-white/50 text-sm">{cameraError}</p>
+            <h3 className="text-white/90 text-lg font-medium mb-2">{cameraError.title}</h3>
+            <p className="text-white/50 text-sm leading-relaxed mb-6">{cameraError.message}</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setCameraError(null);
+                  // Re-trigger camera initialization by toggling selectedMeeting
+                  const temp = selectedMeeting;
+                  setSelectedMeeting('');
+                  setTimeout(() => setSelectedMeeting(temp), 100);
+                }}
+                className="w-full py-3 px-4 bg-gradient-to-r from-[#5B5FC7] to-[#6B6FD3] text-white text-sm font-medium rounded-xl shadow-lg shadow-[#5B5FC7]/20 hover:shadow-[#5B5FC7]/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" strokeWidth={2} />
+                重新尝试
+              </button>
+              <a
+                href="https://support.google.com/chrome/answer/2693767"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2 px-4 text-white/40 text-xs hover:text-white/60 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <HelpCircle className="w-3.5 h-3.5" strokeWidth={1.5} />
+                如何授权摄像头？
+              </a>
+            </div>
           </div>
         ) : !selectedMeeting ? (
           <div className="text-center p-8 bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-3xl max-w-sm w-full">
