@@ -13,53 +13,58 @@
 ```
 ├── public/                 # 静态资源
 ├── scripts/                # 构建与启动脚本
-│   ├── build.sh            # 构建脚本
-│   ├── dev.sh              # 开发环境启动脚本
-│   ├── prepare.sh          # 预处理脚本
-│   └── start.sh            # 生产环境启动脚本
 ├── src/
-│   ├── app/                # 页面路由与布局
-│   ├── components/ui/      # Shadcn UI 组件库
+│   ├── app/
+│   │   ├── api/            # 后端 API 路由
+│   │   │   ├── admin/login/  # 管理后台登录
+│   │   │   ├── attendees/    # 参会人 CRUD
+│   │   │   ├── checkin/      # 签到核验
+│   │   │   ├── export/       # 数据导出
+│   │   │   ├── meetings/     # 会议管理
+│   │   │   ├── qrcode/       # 二维码生成
+│   │   │   └── stats/        # 签到统计
+│   │   ├── admin/          # 后台管理页面
+│   │   │   ├── dashboard/    # 签到看板（实时）
+│   │   │   ├── meetings/     # 会议管理
+│   │   │   ├── attendees/    # 参会名单（Excel 导入）
+│   │   │   ├── qrcodes/      # 二维码生成（PDF 下载）
+│   │   │   └── export/       # 数据导出
+│   │   ├── page.tsx        # 前台扫码核验页（/）
+│   │   ├── layout.tsx      # 根布局
+│   │   └── globals.css     # 全局样式（含品牌色）
+│   ├── components/ui/      # shadcn/ui 组件库
 │   ├── hooks/              # 自定义 Hooks
 │   ├── lib/                # 工具库
-│   │   └── utils.ts        # 通用工具函数 (cn)
-│   └── server.ts           # 自定义服务端入口
-├── next.config.ts          # Next.js 配置
-├── package.json            # 项目依赖管理
-└── tsconfig.json           # TypeScript 配置
+│   └── storage/database/   # Supabase 客户端与 Schema
+├── package.json
+└── tsconfig.json
 ```
-
-- 项目文件（如 app 目录、pages 目录、components 等）默认初始化到 `src/` 目录下。
 
 ## 包管理规范
 
-**仅允许使用 pnpm** 作为包管理器，**严禁使用 npm 或 yarn**。
-**常用命令**：
-- 安装依赖：`pnpm add <package>`
-- 安装开发依赖：`pnpm add -D <package>`
-- 安装所有依赖：`pnpm install`
-- 移除依赖：`pnpm remove <package>`
+**仅允许使用 pnpm** 作为包管理器。
 
-## 开发规范
+## 核心功能
 
-### 编码规范
+### 前台扫码核验页（/）
+- 移动端优先，html5-qrcode 调摄像头扫码
+- 扫码后调用 /api/checkin 核验
+- 成功/重复/失败三种结果，3 秒自动恢复
 
-- 默认按 TypeScript `strict` 心智写代码；优先复用当前作用域已声明的变量、函数、类型和导入，禁止引用未声明标识符或拼错变量名。
-- 禁止隐式 `any` 和 `as any`；函数参数、返回值、解构项、事件对象、`catch` 错误在使用前应有明确类型或先完成类型收窄，并清理未使用的变量和导入。
+### 后台管理端（/admin）
+- 密码登录（环境变量 ADMIN_PASSWORD，默认 admin123）
+- 会议管理：创建/编辑/删除/激活会议
+- 参会名单：Excel 批量导入（xlsx 库解析）
+- 二维码生成：qrcode 库生成，jspdf+html2canvas 导出 PDF
+- 签到看板：实时统计，5 秒轮询刷新
+- 数据导出：xlsx 库生成 Excel
 
-### next.config 配置规范
+## 数据库表
 
-- 配置的路径不要写死绝对路径，必须使用 path.resolve(__dirname, ...)、import.meta.dirname 或 process.cwd() 动态拼接。
+- `meetings` - 会议表
+- `attendees` - 参会人表（含 signin_code 签到码）
+- `checkins` - 签到记录表
 
-### Hydration 问题防范
+## 环境变量
 
-1. 严禁在 JSX 渲染逻辑中直接使用 typeof window、Date.now()、Math.random() 等动态数据。**必须使用 'use client' 并配合 useEffect + useState 确保动态内容仅在客户端挂载后渲染**；同时严禁非法 HTML 嵌套（如 <p> 嵌套 <div>）。
-2. **禁止使用 head 标签**，优先使用 metadata，详见文档：https://nextjs.org/docs/app/api-reference/functions/generate-metadata
-   1. 三方 CSS、字体等资源可在 `globals.css` 中顶部通过 `@import` 引入或使用 next/font
-   2. preload, preconnect, dns-prefetch 通过 ReactDOM 的 preload、preconnect、dns-prefetch 方法引入
-   3. json-ld 可阅读 https://nextjs.org/docs/app/guides/json-ld
-
-## UI 设计与组件规范 (UI & Styling Standards)
-
-- 模板默认预装核心组件库 `shadcn/ui`，位于`src/components/ui/`目录下
-- Next.js 项目**必须默认**采用 shadcn/ui 组件、风格和规范，**除非用户指定用其他的组件和规范。**
+- `ADMIN_PASSWORD` - 管理后台密码（默认 admin123）
