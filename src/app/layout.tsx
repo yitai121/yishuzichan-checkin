@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className={`antialiased bg-[#FAFBFC] text-[#111827]`}>
+      <body className="antialiased bg-[#FAFBFC] text-[#0F1117]">
         {children}
       </body>
     </html>

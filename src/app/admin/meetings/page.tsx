@@ -11,7 +11,6 @@ import {
   Trash2,
   Zap,
   X,
-  AlertCircle,
 } from 'lucide-react';
 
 interface Meeting {
@@ -38,9 +37,7 @@ export default function MeetingsPage() {
     if (res.success) setMeetings(res.data);
   };
 
-  useEffect(() => {
-    fetchMeetings();
-  }, []);
+  useEffect(() => { fetchMeetings(); }, []);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -64,11 +61,7 @@ export default function MeetingsPage() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          location: location || null,
-          start_at: startAt || null,
-        }),
+        body: JSON.stringify({ name, location: location || null, start_at: startAt || null }),
       }).then((r) => r.json());
 
       if (res.success) {
@@ -78,9 +71,7 @@ export default function MeetingsPage() {
       } else {
         showToast(res.error || '操作失败');
       }
-    } catch {
-      showToast('网络错误');
-    }
+    } catch { showToast('网络错误'); }
     setLoading(false);
   };
 
@@ -95,12 +86,8 @@ export default function MeetingsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('确定删除该会议？关联的参会人和签到记录也会被删除。')) return;
     const res = await fetch(`/api/meetings/${id}`, { method: 'DELETE' }).then((r) => r.json());
-    if (res.success) {
-      showToast('会议已删除');
-      fetchMeetings();
-    } else {
-      showToast(res.error || '删除失败');
-    }
+    if (res.success) { showToast('会议已删除'); fetchMeetings(); }
+    else { showToast(res.error || '删除失败'); }
   };
 
   const handleActivate = async (id: string) => {
@@ -109,101 +96,56 @@ export default function MeetingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_active: true }),
     }).then((r) => r.json());
-    if (res.success) {
-      showToast('已设为当前会议');
-      fetchMeetings();
-    } else {
-      showToast(res.error || '操作失败');
-    }
+    if (res.success) { showToast('已设为当前会议'); fetchMeetings(); }
+    else { showToast(res.error || '操作失败'); }
   };
 
   return (
-    <div className="animate-fade-in-up">
-      {/* Toast */}
+    <div>
       {toast && (
-        <div className="fixed top-6 right-6 bg-[#1A1D24] text-white text-sm px-4 py-3 rounded-xl shadow-lg z-50 animate-toast-in flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
-          {toast}
-        </div>
+        <div className="toast toast-success">{toast}</div>
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[20px] font-bold text-[#1A1D24]">会议管理</h1>
-          <p className="text-[13px] text-[#5A6171] mt-1">创建和管理签到会议</p>
+          <h1 className="text-[16px] font-semibold text-[#0F1117]">会议管理</h1>
+          <p className="text-[12px] text-[#99A0AE] mt-0.5">创建和管理签到会议</p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true); }}
-          className="btn-primary"
-        >
-          <Plus className="w-4 h-4" />
+        <button onClick={() => { resetForm(); setShowForm(true); }} className="btn-primary">
+          <Plus className="w-3.5 h-3.5" />
           新建会议
         </button>
       </div>
 
       {/* Form modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40" onClick={resetForm}>
-          <form
-            onSubmit={handleSubmit}
-            onClick={(e) => e.stopPropagation()}
-            className="card p-6 w-full max-w-md animate-fade-in-up"
-          >
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[16px] font-semibold text-[#1A1D24]">
-                {editingId ? '编辑会议' : '新建会议'}
-              </h2>
-              <button type="button" onClick={resetForm} className="p-1 rounded-lg hover:bg-[#F4F5F8]">
-                <X className="w-4 h-4 text-[#9CA3AF]" />
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40" onClick={resetForm}>
+          <form onSubmit={handleSubmit} onClick={(e) => e.stopPropagation()} className="card p-5 w-full max-w-md animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[14px] font-semibold text-[#0F1117]">{editingId ? '编辑会议' : '新建会议'}</h2>
+              <button type="button" onClick={resetForm} className="p-1 rounded hover:bg-[#F6F7F9]">
+                <X className="w-3.5 h-3.5 text-[#99A0AE]" />
               </button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <label className="block text-[13px] font-medium text-[#1A1D24] mb-1.5">会议名称 *</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  className="input-field"
-                  placeholder="如：亿数嘉年华开幕式"
-                />
+                <label className="block text-[11px] font-medium text-[#525866] mb-1">会议名称 *</label>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="input-field" placeholder="如：亿数嘉年华开幕式" />
               </div>
               <div>
-                <label className="block text-[13px] font-medium text-[#1A1D24] mb-1.5">地点</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="input-field"
-                  placeholder="如：主会场A厅"
-                />
+                <label className="block text-[11px] font-medium text-[#525866] mb-1">地点</label>
+                <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="input-field" placeholder="如：主会场A厅" />
               </div>
               <div>
-                <label className="block text-[13px] font-medium text-[#1A1D24] mb-1.5">开始时间</label>
-                <input
-                  type="datetime-local"
-                  value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
-                  className="input-field"
-                />
+                <label className="block text-[11px] font-medium text-[#525866] mb-1">开始时间</label>
+                <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} className="input-field" />
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                type="button"
-                onClick={resetForm}
-                className="btn-secondary flex-1 justify-center"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary flex-1 justify-center disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            <div className="flex gap-2 mt-4">
+              <button type="button" onClick={resetForm} className="btn-secondary flex-1 justify-center">取消</button>
+              <button type="submit" disabled={loading} className="btn-primary flex-1 justify-center disabled:opacity-50">
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 {loading ? '保存中...' : '保存'}
               </button>
             </div>
@@ -212,66 +154,49 @@ export default function MeetingsPage() {
       )}
 
       {/* Meeting list */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {meetings.length === 0 ? (
-          <div className="card py-16 text-center">
-            <Calendar className="w-10 h-10 text-[#9CA3AF] mx-auto mb-3" strokeWidth={1.5} />
-            <p className="text-[#5A6171] text-sm">暂无会议，点击上方按钮创建</p>
+          <div className="card py-12 text-center">
+            <Calendar className="w-8 h-8 text-[#C9CDD4] mx-auto mb-2" strokeWidth={1.5} />
+            <p className="text-[#525866] text-[12px]">暂无会议，点击上方按钮创建</p>
           </div>
         ) : (
           meetings.map((m, i) => (
             <div
               key={m.id}
-              className={`card p-5 flex items-center justify-between animate-stagger-in ${
-                m.is_active ? 'ring-1 ring-[#5B5FC7]/20 bg-[#EEEDFB]/20' : ''
-              }`}
-              style={{ animationDelay: `${i * 50}ms` }}
+              className={`card p-4 flex items-center justify-between animate-stagger-in ${m.is_active ? 'ring-1 ring-[#5B5FC7]/15' : ''}`}
+              style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-[14px] font-semibold text-[#1A1D24] truncate">{m.name}</h3>
-                  {m.is_active && (
-                    <span className="badge badge-brand">当前</span>
-                  )}
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[13px] font-semibold text-[#0F1117] truncate">{m.name}</h3>
+                  {m.is_active && <span className="badge badge-brand">当前</span>}
                 </div>
-                <div className="flex items-center gap-3 mt-1.5">
+                <div className="flex items-center gap-3 mt-1">
                   {m.location && (
-                    <span className="flex items-center gap-1 text-[12px] text-[#5A6171]">
-                      <MapPin className="w-3 h-3" strokeWidth={1.5} />
-                      {m.location}
+                    <span className="flex items-center gap-1 text-[11px] text-[#99A0AE]">
+                      <MapPin className="w-3 h-3" strokeWidth={1.5} />{m.location}
                     </span>
                   )}
                   {m.start_at && (
-                    <span className="flex items-center gap-1 text-[12px] text-[#5A6171]">
+                    <span className="flex items-center gap-1 text-[11px] text-[#99A0AE]">
                       <Clock className="w-3 h-3" strokeWidth={1.5} />
                       {new Date(m.start_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
                     </span>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 ml-4">
+              <div className="flex items-center gap-1.5 shrink-0 ml-3">
                 {!m.is_active && (
-                  <button
-                    onClick={() => handleActivate(m.id)}
-                    className="btn-secondary text-[12px] px-3 py-1.5"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    激活
+                  <button onClick={() => handleActivate(m.id)} className="btn-secondary text-[11px] px-2.5 py-1">
+                    <Zap className="w-3 h-3" />激活
                   </button>
                 )}
-                <button
-                  onClick={() => handleEdit(m)}
-                  className="btn-secondary text-[12px] px-3 py-1.5"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  编辑
+                <button onClick={() => handleEdit(m)} className="btn-secondary text-[11px] px-2.5 py-1">
+                  <Pencil className="w-3 h-3" />编辑
                 </button>
-                <button
-                  onClick={() => handleDelete(m.id)}
-                  className="btn-danger text-[12px] px-3 py-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  删除
+                <button onClick={() => handleDelete(m.id)} className="btn-danger text-[11px] px-2.5 py-1">
+                  <Trash2 className="w-3 h-3" />删除
                 </button>
               </div>
             </div>
