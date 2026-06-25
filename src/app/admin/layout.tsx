@@ -14,6 +14,7 @@ import {
   Bell,
   ChevronRight,
   Loader2,
+  ScanLine,
 } from 'lucide-react';
 
 const navItems = [
@@ -21,6 +22,7 @@ const navItems = [
   { href: '/admin/meetings', label: '会议管理', icon: Calendar },
   { href: '/admin/attendees', label: '参会名单', icon: Users },
   { href: '/admin/qrcodes', label: '二维码管理', icon: QrCode },
+  { href: '/admin/scanner-users', label: '扫码账号', icon: ScanLine },
   { href: '/admin/export', label: '数据导出', icon: Download },
 ];
 

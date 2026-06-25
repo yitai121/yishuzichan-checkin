@@ -22,6 +22,12 @@ interface CheckinResult {
 type ScanStatus = 'scanning' | 'result';
 
 export default function HomePage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [scannerUser, setScannerUser] = useState<string>('');
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<string>('');
   const [stats, setStats] = useState({ checked_in: 0, total: 0 });
@@ -32,7 +38,62 @@ export default function HomePage() {
   const isProcessingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Check if already logged in
   useEffect(() => {
+    const savedUser = sessionStorage.getItem('scanner_auth');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        setIsAuthenticated(true);
+        setScannerUser(parsed.username);
+      } catch {
+        sessionStorage.removeItem('scanner_auth');
+      }
+    }
+  }, []);
+
+  const handleLogin = async () => {
+    if (!loginUsername.trim() || !loginPassword.trim()) {
+      setLoginError('请输入账号和密码');
+      return;
+    }
+
+    setLoginLoading(true);
+    setLoginError('');
+
+    try {
+      const res = await fetch('/api/scanner-users/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginUsername.trim(), password: loginPassword }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setIsAuthenticated(true);
+        setScannerUser(data.data.username);
+        sessionStorage.setItem('scanner_auth', JSON.stringify({ username: data.data.username, id: data.data.id }));
+      } else {
+        setLoginError(data.error || '登录失败');
+      }
+    } catch {
+      setLoginError('网络错误，请重试');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setScannerUser('');
+    setLoginUsername('');
+    setLoginPassword('');
+    sessionStorage.removeItem('scanner_auth');
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
     fetch('/api/meetings')
       .then((r) => r.json())
       .then((res) => {
@@ -44,7 +105,7 @@ export default function HomePage() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [isAuthenticated]);
 
   const fetchStats = useCallback(async () => {
     if (!selectedMeeting) return;
@@ -59,13 +120,14 @@ export default function HomePage() {
   }, [selectedMeeting]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     fetchStats();
     const interval = setInterval(fetchStats, 5000);
     return () => clearInterval(interval);
-  }, [fetchStats]);
+  }, [fetchStats, isAuthenticated]);
 
   useEffect(() => {
-    if (!selectedMeeting) return;
+    if (!isAuthenticated || !selectedMeeting) return;
 
     const scanner = new Html5Qrcode('qr-reader');
     scannerRef.current = scanner;
@@ -156,10 +218,93 @@ export default function HomePage() {
       if (timerRef.current) clearTimeout(timerRef.current);
       scannerRef.current?.stop().catch(() => {});
     };
-  }, [selectedMeeting, fetchStats]);
+  }, [selectedMeeting, fetchStats, isAuthenticated]);
 
   const currentMeeting = meetings.find((m) => m.id === selectedMeeting);
   const progress = stats.total > 0 ? (stats.checked_in / stats.total) * 100 : 0;
+
+  // Login screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0A0B0F] flex flex-col relative overflow-hidden">
+        {/* Ambient background glow */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-[-20%] left-[50%] translate-x-[-50%] w-[600px] h-[600px] rounded-full bg-[#5B5FC7]/8 blur-[120px]" />
+        </div>
+
+        <div className="flex-1 flex items-center justify-center px-5 relative z-10">
+          <div className="w-full max-w-sm">
+            {/* Brand */}
+            <div className="text-center mb-8">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center shadow-lg shadow-[#5B5FC7]/20">
+                <span className="text-white text-xl font-bold">亿</span>
+              </div>
+              <h1 className="text-white text-xl font-semibold tracking-tight">亿数嘉年华签到</h1>
+              <p className="text-white/40 text-sm mt-2">请使用扫码账号登录</p>
+            </div>
+
+            {/* Login form */}
+            <div className="bg-white/[0.06] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white/60 text-xs font-medium mb-2 uppercase tracking-wider">账号</label>
+                  <input
+                    type="text"
+                    value={loginUsername}
+                    onChange={(e) => setLoginUsername(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                    placeholder="输入用户名"
+                    className="w-full px-4 py-3 text-sm bg-white/[0.05] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/40 focus:border-[#5B5FC7]/40 transition-all"
+                    autoComplete="username"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white/60 text-xs font-medium mb-2 uppercase tracking-wider">密码</label>
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                    placeholder="输入密码"
+                    className="w-full px-4 py-3 text-sm bg-white/[0.05] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-[#5B5FC7]/40 focus:border-[#5B5FC7]/40 transition-all"
+                    autoComplete="current-password"
+                  />
+                </div>
+
+                {loginError && (
+                  <div className="px-3 py-2 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20">
+                    <p className="text-[#EF4444] text-xs">{loginError}</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleLogin}
+                  disabled={loginLoading}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-[#5B5FC7] to-[#6B6FD3] text-white text-sm font-medium rounded-xl shadow-lg shadow-[#5B5FC7]/20 hover:shadow-[#5B5FC7]/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loginLoading ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      登录中...
+                    </>
+                  ) : (
+                    '登录'
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-center text-white/20 text-xs mt-6">
+              如需创建账号，请联系管理员
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0B0F] flex flex-col relative overflow-hidden">
@@ -172,12 +317,23 @@ export default function HomePage() {
       {/* Header */}
       <div className="relative z-10 px-5 pt-5 pb-3">
         <div className="max-w-lg mx-auto">
-          {/* Brand */}
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center shadow-lg shadow-[#5B5FC7]/20">
-              <span className="text-white text-xs font-bold">亿</span>
+          {/* Brand + User info */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center shadow-lg shadow-[#5B5FC7]/20">
+                <span className="text-white text-xs font-bold">亿</span>
+              </div>
+              <span className="text-white/90 text-sm font-medium tracking-wide">亿数嘉年华</span>
             </div>
-            <span className="text-white/90 text-sm font-medium tracking-wide">亿数嘉年华</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white/40 text-xs">{scannerUser}</span>
+              <button
+                onClick={handleLogout}
+                className="px-2 py-1 text-xs text-white/30 hover:text-white/60 border border-white/10 rounded-lg transition-colors"
+              >
+                退出
+              </button>
+            </div>
           </div>
 
           {/* Meeting selector - glassmorphism */}

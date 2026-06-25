@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     loadAdminPassword();
     const body = await request.json();
     const { password } = body as { password?: string };
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'etheric111';
 
     if (!password || password !== adminPassword) {
       return NextResponse.json(

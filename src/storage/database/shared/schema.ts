@@ -6,6 +6,21 @@ export const healthCheck = pgTable("health_check", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
+export const scannerUsers = pgTable(
+  "scanner_users",
+  {
+    id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+    username: text("username").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("scanner_users_username_unique_idx").on(table.username),
+    index("scanner_users_is_active_idx").on(table.isActive),
+  ]
+);
+
 export const meetings = pgTable(
   "meetings",
   {
