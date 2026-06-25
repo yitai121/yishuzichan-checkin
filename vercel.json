@@ -5,6 +5,18 @@
   "installCommand": "pnpm install",
   "outputDirectory": ".next",
   "regions": ["hnd1"],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "qiandaoht.yishuzichan.cc"
+        }
+      ],
+      "destination": "/admin/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
