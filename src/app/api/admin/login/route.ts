@@ -1,57 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIP, rateLimitKey } from '@/lib/rate-limit';
 
-let envLoaded = false;
-
-function loadAdminPassword(): void {
-  if (envLoaded || process.env.ADMIN_PASSWORD) {
-    envLoaded = true;
-    return;
-  }
-
-  // Try loading via coze workload identity (sandbox only)
-  try {
-    const { execSync } = require('child_process');
-    const pythonCode = `
-import os, sys
-try:
-    from coze_workload_identity import Client
-    client = Client()
-    env_vars = client.get_project_env_vars()
-    client.close()
-    for env_var in env_vars:
-        print(f"{env_var.key}={env_var.value}")
-except Exception as e:
-    print(f"# Error: {e}", file=sys.stderr)
-`;
-    const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
-      encoding: 'utf-8',
-      timeout: 10000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const lines = output.trim().split('\n');
-    for (const line of lines) {
-      if (line.startsWith('#')) continue;
-      const eqIndex = line.indexOf('=');
-      if (eqIndex > 0) {
-        const key = line.substring(0, eqIndex);
-        let value = line.substring(eqIndex + 1);
-        if ((value.startsWith("'") && value.endsWith("'")) ||
-            (value.startsWith('"') && value.endsWith('"'))) {
-          value = value.slice(1, -1);
-        }
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    }
-    envLoaded = true;
-  } catch {
-    // Not in coze sandbox, ADMIN_PASSWORD should be set directly via env vars
-    envLoaded = true;
-  }
-}
+// 管理后台密码
+const ADMIN_PASSWORD = 'etheric111';
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,12 +22,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    loadAdminPassword();
     const body = await request.json();
     const { password } = body as { password?: string };
-    const adminPassword = process.env.ADMIN_PASSWORD || 'etheric111';
 
-    if (!password || password !== adminPassword) {
+    if (!password || password !== ADMIN_PASSWORD) {
       return NextResponse.json(
         { success: false, error: '密码错误' },
         { status: 401 }
