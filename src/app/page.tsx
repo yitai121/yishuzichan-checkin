@@ -79,22 +79,32 @@ export default function HomePage() {
           isProcessingRef.current = true;
 
           try {
-            let code = decodedText;
+            // Try to parse as encrypted token first
+            let tokenToSend = decodedText;
+            let isEncryptedToken = false;
+
             try {
               const parsed = JSON.parse(decodedText);
-              if (parsed.code) code = parsed.code;
+              // Legacy format: { code, attendee_id }
+              if (parsed.code) {
+                tokenToSend = parsed.code;
+              }
             } catch {
-              // Use raw text as code
+              // Not JSON - could be an encrypted token (base64url format with dots)
+              if (decodedText.includes('.') && decodedText.length > 20) {
+                isEncryptedToken = true;
+                tokenToSend = decodedText;
+              }
             }
+
+            const requestBody = isEncryptedToken
+              ? { token: tokenToSend, meeting_id: selectedMeeting, device_info: navigator.userAgent }
+              : { signin_code: tokenToSend, meeting_id: selectedMeeting, device_info: navigator.userAgent };
 
             const res = await fetch('/api/checkin', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                signin_code: code,
-                meeting_id: selectedMeeting,
-                device_info: navigator.userAgent,
-              }),
+              body: JSON.stringify(requestBody),
             }).then((r) => r.json());
 
             let checkinResult: CheckinResult;

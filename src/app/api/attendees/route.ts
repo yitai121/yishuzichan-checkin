@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { sanitizeString, isValidUUID } from '@/lib/validation';
+import { generateSigninCode } from '@/lib/crypto';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const meetingId = searchParams.get('meeting_id');
-    if (!meetingId) {
-      return NextResponse.json({ success: false, error: '缺少 meeting_id 参数' }, { status: 400 });
+    if (!meetingId || !isValidUUID(meetingId)) {
+      return NextResponse.json({ success: false, error: '缺少有效的 meeting_id 参数' }, { status: 400 });
     }
     const client = getSupabaseClient();
     const { data, error } = await client
@@ -35,21 +37,30 @@ export async function POST(request: NextRequest) {
         note?: string;
       }>;
     };
-    if (!meeting_id) {
-      return NextResponse.json({ success: false, error: '缺少 meeting_id' }, { status: 400 });
+
+    if (!meeting_id || !isValidUUID(meeting_id)) {
+      return NextResponse.json({ success: false, error: '缺少有效的 meeting_id' }, { status: 400 });
     }
     if (!attendeeList || !Array.isArray(attendeeList) || attendeeList.length === 0) {
       return NextResponse.json({ success: false, error: '参会人列表不能为空' }, { status: 400 });
     }
+
+    // Limit batch size
+    if (attendeeList.length > 500) {
+      return NextResponse.json({ success: false, error: '单次导入不能超过500人' }, { status: 400 });
+    }
+
     const client = getSupabaseClient();
     const records = attendeeList.map((a) => ({
       meeting_id,
-      name: a.name.trim(),
-      phone: a.phone?.trim() || null,
-      position: a.position?.trim() || null,
-      company: a.company?.trim() || null,
-      note: a.note?.trim() || null,
+      name: sanitizeString(a.name, 100) || '未命名',
+      phone: sanitizeString(a.phone, 20) || null,
+      position: sanitizeString(a.position, 100) || null,
+      company: sanitizeString(a.company, 100) || null,
+      note: sanitizeString(a.note, 500) || null,
+      signin_code: generateSigninCode(),
     }));
+
     const { data, error } = await client
       .from('attendees')
       .insert(records)

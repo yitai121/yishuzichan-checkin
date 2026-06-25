@@ -6,13 +6,10 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Extract subdomain from host
-  // e.g., checkin.yishuzichan.cc -> checkin
-  // e.g., admin.yishuzichan.cc -> admin
   const parts = hostname.split('.');
   let subdomain = '';
   
   if (parts.length >= 3) {
-    // Check if it's a subdomain of yishuzichan.cc
     const domainParts = parts.slice(0, -2).join('.');
     if (parts.slice(-2).join('.') === 'yishuzichan.cc') {
       subdomain = domainParts;
@@ -21,46 +18,80 @@ export function middleware(request: NextRequest) {
 
   // Subdomain routing
   if (subdomain === 'checkin' || subdomain === 'sign' || subdomain === 'qr' || subdomain === 'qiandao') {
-    // Scanning page - only allow root path
     if (pathname === '/' || pathname === '') {
-      return NextResponse.next();
+      const response = NextResponse.next();
+      return addSecurityHeaders(response);
     }
-    // Redirect other paths to root
-    return NextResponse.redirect(new URL('/', request.url));
+    const url = new URL('/', request.url);
+    const response = NextResponse.redirect(url);
+    return addSecurityHeaders(response);
   }
 
   if (subdomain === 'admin' || subdomain === 'manage' || subdomain === 'dash' || subdomain === 'qiandaoHT') {
-    // Admin page - rewrite to /admin
     if (pathname === '/' || pathname === '') {
       const url = request.nextUrl.clone();
       url.pathname = '/admin';
-      return NextResponse.rewrite(url);
+      const response = NextResponse.rewrite(url);
+      return addSecurityHeaders(response);
     }
-    // Allow /admin/* paths
     if (pathname.startsWith('/admin')) {
-      return NextResponse.next();
+      const response = NextResponse.next();
+      return addSecurityHeaders(response);
     }
-    // Rewrite other paths to /admin
     const url = request.nextUrl.clone();
     url.pathname = '/admin';
-    return NextResponse.rewrite(url);
+    const response = NextResponse.rewrite(url);
+    return addSecurityHeaders(response);
   }
 
-  // Default: no subdomain or unrecognized subdomain
-  // Serve normal routing
-  return NextResponse.next();
+  // Default routing
+  const response = NextResponse.next();
+  return addSecurityHeaders(response);
+}
+
+function addSecurityHeaders(response: NextResponse): NextResponse {
+  // Prevent clickjacking
+  response.headers.set('X-Frame-Options', 'DENY');
+  
+  // Prevent MIME type sniffing
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  
+  // Referrer policy
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // XSS protection (legacy browsers)
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  
+  // Permissions policy - restrict browser features
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=self, microphone=(), geolocation=(), payment=()'
+  );
+  
+  // Content Security Policy
+  response.headers.set(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ')
+  );
+
+  // Remove server identification
+  response.headers.delete('X-Powered-By');
+  
+  return response;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public assets
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)',
   ],
 };
