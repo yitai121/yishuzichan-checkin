@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<!-- saved from url=(0353)https://static.coze.site/7631922736981410083-data_volume/files/%E6%89%80%E6%9C%89%E5%AF%B9%E8%AF%9D/%E4%B8%BB%E5%AF%B9%E8%AF%9D/%E7%94%A8%E6%88%B7%E4%B8%8A%E4%BC%A0/%E4%BC%9A%E8%AE%AE%E7%AD%BE%E5%88%B0%E7%8E%B0%E7%8A%B6/%E8%AE%BE%E8%AE%A1%E7%A8%BF/screen.html?sign=1784932639-1e388999c0-0-b23a5d3879a57a35abbfe53a576aacf82fdda342158f9d49a561685fc5543a41 -->
+<html lang="zh-CN"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=1920,initial-scale=1">
+<title>亿数嘉年华 · 现场签到大屏</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link href="./亿数嘉年华 · 现场签到大屏_files/css2" rel="stylesheet">
+<style>
+/* =========================
+   设计令牌
+   ========================= */
+:root{
+  /* 色 */
+  --bg-base:#F6F5F0;          /* 暖白基底（有米色倾向，不冷） */
+  --bg-overlay:#EEEDFB;       /* 蓝紫光晕 */
+  --bg-gold-glow:#F5EBD5;     /* 金色光晕 */
+  --ink:#1A1B2E;              /* 深墨蓝 */
+  --ink-2:#4A4E69;            /* 二级文字 */
+  --ink-3:#8B8FA5;            /* 三级文字 */
+  --violet:#5B5FC7;           /* 主色 */
+  --violet-2:#4347A6;         /* 主色深 */
+  --violet-soft:#8B8FE0;      /* 主色亮 */
+  --gold:#C9A55C;             /* 金 */
+  --gold-2:#A88542;           /* 金深 */
+  --gold-soft:#E5C988;        /* 金亮 */
+  --line:#D9D6E6;             /* 分割线 */
+
+  /* 字 */
+  --display:"Fraunces","Noto Serif SC",ui-serif,Georgia,serif;
+  --serif:"Noto Serif SC","Fraunces",ui-serif,Georgia,serif;
+  --sans:"Noto Sans SC","PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  width:100vw;height:100vh;overflow:hidden;
+  background:var(--bg-base);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-feature-settings:"ss01","cv11","tnum";
+}
+
+/* =========================
+   背景层（多层叠加）
+   ========================= */
+.bg-canvas{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+}
+/* 蓝紫光晕：左上 */
+.bg-canvas::before{
+  content:"";position:absolute;
+  top:-20%;left:-10%;
+  width:60%;height:80%;
+  background:radial-gradient(closest-side,var(--bg-overlay) 0%,rgba(238,237,251,0) 70%);
+  filter:blur(20px);
+  animation:drift-1 18s ease-in-out infinite alternate;
+}
+/* 金色光晕：右下 */
+.bg-canvas::after{
+  content:"";position:absolute;
+  bottom:-20%;right:-10%;
+  width:55%;height:75%;
+  background:radial-gradient(closest-side,var(--bg-gold-glow) 0%,rgba(245,235,213,0) 70%);
+  filter:blur(20px);
+  animation:drift-2 22s ease-in-out infinite alternate;
+}
+@keyframes drift-1{
+  0%{transform:translate(0,0) scale(1)}
+  100%{transform:translate(40px,30px) scale(1.05)}
+}
+@keyframes drift-2{
+  0%{transform:translate(0,0) scale(1)}
+  100%{transform:translate(-40px,-20px) scale(1.08)}
+}
+
+/* 噪点纹理 */
+.noise{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  opacity:0.5;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.10  0 0 0 0.12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* 网格细线（极淡） */
+.grid-lines{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:
+    linear-gradient(to right,rgba(91,95,199,0.04) 1px,transparent 1px),
+    linear-gradient(to bottom,rgba(91,95,199,0.04) 1px,transparent 1px);
+  background-size:80px 80px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 50%,rgba(0,0,0,0.5),transparent 80%);
+}
+
+/* =========================
+   主舞台
+   ========================= */
+.stage{
+  position:relative;z-index:10;
+  width:100vw;height:100vh;
+  display:grid;
+  grid-template-rows:96px 1fr 72px;
+  padding:0 64px;
+}
+
+/* ---- 顶栏 ---- */
+.top{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:32px;
+  border-bottom:1px solid var(--line);
+}
+.brand{
+  display:flex;align-items:center;gap:14px;
+}
+.brand-mark{
+  width:44px;height:44px;
+  border:1.5px solid var(--gold);
+  display:grid;place-items:center;
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:24px;
+  color:var(--gold-2);
+  position:relative;
+}
+.brand-mark::before,.brand-mark::after{
+  content:"";position:absolute;
+  width:6px;height:6px;
+  border:1.5px solid var(--gold);
+}
+.brand-mark::before{top:-3px;left:-3px;border-right:none;border-bottom:none}
+.brand-mark::after{bottom:-3px;right:-3px;border-left:none;border-top:none}
+.brand-name{
+  font-family:var(--serif);
+  font-size:20px;
+  font-weight:500;
+  letter-spacing:0.2em;
+  color:var(--ink);
+}
+.brand-name .en{
+  font-family:var(--display);
+  font-size:11px;
+  letter-spacing:0.35em;
+  color:var(--ink-3);
+  display:block;
+  margin-top:2px;
+  font-weight:400;
+}
+
+.event-title{
+  text-align:center;
+  font-family:var(--serif);
+  font-size:24px;
+  font-weight:500;
+  letter-spacing:0.4em;
+  color:var(--ink);
+  padding-left:0.4em; /* 补 letter-spacing 视觉偏移 */
+}
+.event-title .deco{
+  display:inline-block;width:32px;height:1px;
+  background:var(--gold);
+  vertical-align:middle;margin:0 16px;
+}
+
+.countdown{
+  display:flex;align-items:center;gap:12px;
+  font-family:var(--display);
+  font-variant-numeric:tabular-nums;
+}
+.countdown .label{
+  font-family:var(--sans);
+  font-size:11px;
+  letter-spacing:0.3em;
+  color:var(--ink-3);
+  text-transform:uppercase;
+}
+.countdown .time{
+  font-size:28px;
+  font-weight:300;
+  color:var(--ink);
+  letter-spacing:0.04em;
+}
+.countdown .time .sep{
+  color:var(--violet);
+  margin:0 2px;
+  animation:blink 1.2s ease-in-out infinite;
+}
+@keyframes blink{
+  0%,100%{opacity:0.3}
+  50%{opacity:1}
+}
+
+/* ---- 主区 ---- */
+.main{
+  display:grid;
+  grid-template-columns:1.35fr 1fr;
+  gap:80px;
+  padding:48px 0 32px;
+  align-items:center;
+}
+
+/* C位：签到数字 + 进度环 */
+.hero{
+  position:relative;
+  display:flex;flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+}
+.hero-eyebrow{
+  display:flex;align-items:center;gap:14px;
+  margin-bottom:24px;
+}
+.hero-eyebrow .dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--violet);
+  box-shadow:0 0 0 4px rgba(91,95,199,0.15);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{
+  0%,100%{box-shadow:0 0 0 4px rgba(91,95,199,0.15)}
+  50%{box-shadow:0 0 0 10px rgba(91,95,199,0)}
+}
+.hero-eyebrow .text{
+  font-size:13px;
+  letter-spacing:0.35em;
+  color:var(--ink-2);
+  text-transform:uppercase;
+  font-weight:500;
+}
+
+.hero-number-wrap{
+  display:flex;align-items:baseline;gap:0;
+  position:relative;
+}
+.hero-number{
+  font-family:var(--display);
+  font-variant-numeric:tabular-nums;
+  font-size:260px;
+  font-weight:300;
+  line-height:0.85;
+  letter-spacing:-0.04em;
+  color:var(--ink);
+  position:relative;
+  display:inline-block;
+}
+.hero-number.bump{
+  animation:number-bump 0.6s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes number-bump{
+  0%{transform:translateY(0) scale(1);color:var(--ink)}
+  30%{transform:translateY(-12px) scale(1.04);color:var(--violet)}
+  60%{transform:translateY(0) scale(1);color:var(--violet-2)}
+  100%{transform:translateY(0) scale(1);color:var(--ink)}
+}
+.hero-slash{
+  font-family:var(--display);
+  font-size:80px;
+  font-weight:200;
+  color:var(--ink-3);
+  margin:0 16px 14px;
+  align-self:flex-end;
+}
+.hero-total{
+  font-family:var(--display);
+  font-variant-numeric:tabular-nums;
+  font-size:80px;
+  font-weight:300;
+  color:var(--ink-2);
+  align-self:flex-end;
+  margin-bottom:14px;
+}
+
+.hero-meta{
+  display:flex;align-items:center;gap:32px;
+  margin-top:28px;
+}
+.hero-meta .item{
+  display:flex;flex-direction:column;gap:6px;
+}
+.hero-meta .item .k{
+  font-size:11px;
+  letter-spacing:0.3em;
+  color:var(--ink-3);
+  text-transform:uppercase;
+  font-weight:500;
+}
+.hero-meta .item .v{
+  font-family:var(--display);
+  font-size:32px;
+  font-weight:400;
+  color:var(--ink);
+  letter-spacing:-0.01em;
+  font-variant-numeric:tabular-nums;
+}
+.hero-meta .item .v .unit{
+  font-size:14px;
+  color:var(--ink-3);
+  margin-left:4px;
+  font-family:var(--sans);
+}
+.hero-meta .divider{
+  width:1px;height:48px;background:var(--line);
+}
+
+/* 进度条（细线 + 金色） */
+.hero-bar{
+  margin-top:36px;
+  width:100%;max-width:680px;
+  position:relative;
+}
+.hero-bar-track{
+  height:2px;background:var(--line);
+  position:relative;overflow:hidden;
+}
+.hero-bar-fill{
+  position:absolute;top:0;left:0;
+  height:100%;
+  background:linear-gradient(90deg,var(--violet) 0%,var(--gold) 100%);
+  transition:width 1.2s cubic-bezier(0.16,1,0.3,1);
+}
+.hero-bar-marks{
+  display:flex;justify-content:space-between;
+  margin-top:10px;
+  font-family:var(--display);
+  font-size:11px;
+  font-variant-numeric:tabular-nums;
+  color:var(--ink-3);
+  letter-spacing:0.1em;
+}
+
+/* 欢迎语（最新签到） */
+.hero-welcome{
+  position:absolute;
+  bottom:-40px;left:0;
+  font-family:var(--serif);
+  font-size:18px;
+  letter-spacing:0.25em;
+  color:var(--ink-2);
+  opacity:0;
+  transform:translateY(10px);
+  transition:opacity 0.6s ease,transform 0.6s ease;
+}
+.hero-welcome.active{opacity:1;transform:translateY(0)}
+.hero-welcome .name{
+  color:var(--violet);
+  font-weight:500;
+  margin:0 4px;
+}
+.hero-welcome::before{
+  content:"";display:inline-block;
+  width:24px;height:1px;background:var(--gold);
+  vertical-align:middle;margin-right:14px;
+}
+
+/* ---- 姓名墙 ---- */
+.wall{
+  position:relative;
+  height:100%;
+  display:flex;flex-direction:column;
+  justify-content:center;
+}
+.wall-head{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:20px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--line);
+}
+.wall-head .title{
+  font-family:var(--serif);
+  font-size:18px;
+  font-weight:500;
+  letter-spacing:0.3em;
+  color:var(--ink);
+}
+.wall-head .title .en{
+  font-family:var(--display);
+  font-size:11px;
+  letter-spacing:0.25em;
+  color:var(--ink-3);
+  font-weight:400;
+  display:block;
+  margin-top:4px;
+}
+.wall-head .live{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--display);
+  font-size:11px;
+  letter-spacing:0.3em;
+  color:var(--violet);
+  text-transform:uppercase;
+}
+.wall-head .live .ring{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--violet);
+  box-shadow:0 0 0 0 var(--violet);
+  animation:ring 1.4s ease-in-out infinite;
+}
+@keyframes ring{
+  0%{box-shadow:0 0 0 0 rgba(91,95,199,0.55)}
+  100%{box-shadow:0 0 0 12px rgba(91,95,199,0)}
+}
+
+.wall-list{
+  list-style:none;
+  display:flex;flex-direction:column;
+  gap:14px;
+}
+.wall-item{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:18px;
+  padding:18px 22px;
+  background:rgba(255,255,255,0.55);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  border:1px solid rgba(217,214,230,0.7);
+  position:relative;
+  overflow:hidden;
+  animation:slide-in 0.7s cubic-bezier(0.16,1,0.3,1);
+}
+.wall-item:first-child{
+  background:linear-gradient(135deg,rgba(255,255,255,0.85) 0%,rgba(238,237,251,0.7) 100%);
+  border-color:rgba(91,95,199,0.25);
+}
+.wall-item:first-child::before{
+  content:"";position:absolute;
+  top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  animation:scan-line 2s ease-in-out infinite;
+}
+@keyframes scan-line{
+  0%{transform:translateX(-100%)}
+  100%{transform:translateX(100%)}
+}
+@keyframes slide-in{
+  0%{opacity:0;transform:translateX(40px) scale(0.96)}
+  100%{opacity:1;transform:translateX(0) scale(1)}
+}
+
+.avatar{
+  width:48px;height:48px;
+  border:1px solid var(--gold);
+  display:grid;place-items:center;
+  font-family:var(--serif);
+  font-weight:500;
+  font-size:18px;
+  color:var(--gold-2);
+  background:rgba(255,255,255,0.6);
+  letter-spacing:0;
+}
+.wall-item:first-child .avatar{
+  background:var(--violet);
+  color:white;
+  border-color:var(--violet);
+}
+
+.who{
+  display:flex;flex-direction:column;gap:4px;min-width:0;
+}
+.who .name{
+  font-family:var(--serif);
+  font-size:20px;
+  font-weight:500;
+  color:var(--ink);
+  letter-spacing:0.06em;
+}
+.who .org{
+  font-size:12px;
+  color:var(--ink-3);
+  letter-spacing:0.1em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.time{
+  font-family:var(--display);
+  font-size:13px;
+  font-variant-numeric:tabular-nums;
+  color:var(--ink-2);
+  letter-spacing:0.05em;
+  text-align:right;
+  display:flex;flex-direction:column;align-items:flex-end;gap:2px;
+}
+.time .rel{
+  font-family:var(--sans);
+  font-size:11px;
+  color:var(--ink-3);
+  letter-spacing:0.15em;
+}
+
+/* ---- 底栏 ---- */
+.bottom{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:24px;
+  border-top:1px solid var(--line);
+  font-family:var(--sans);
+}
+.bottom .left{
+  font-size:13px;
+  letter-spacing:0.2em;
+  color:var(--ink-2);
+}
+.bottom .center{
+  font-family:var(--serif);
+  font-size:14px;
+  letter-spacing:0.5em;
+  color:var(--ink-3);
+  padding-left:0.5em;
+}
+.bottom .center .deco{
+  display:inline-block;width:20px;height:1px;
+  background:var(--gold);
+  vertical-align:middle;margin:0 14px;
+}
+.bottom .right{
+  text-align:right;
+  font-family:var(--display);
+  font-size:13px;
+  font-variant-numeric:tabular-nums;
+  color:var(--ink-2);
+  letter-spacing:0.08em;
+}
+
+/* =========================
+   撒花/光辐射（新签到触发）
+   ========================= */
+.burst{
+  position:fixed;z-index:50;pointer-events:none;
+  inset:0;
+  opacity:0;
+}
+.burst.active{
+  animation:burst-flash 1.4s ease-out;
+}
+@keyframes burst-flash{
+  0%{opacity:0}
+  20%{opacity:1}
+  100%{opacity:0}
+}
+.burst::before{
+  content:"";position:absolute;
+  top:50%;left:35%;
+  width:600px;height:600px;
+  margin-left:-300px;margin-top:-300px;
+  border-radius:50%;
+  background:radial-gradient(closest-side,rgba(201,165,92,0.35) 0%,rgba(201,165,92,0) 70%);
+  filter:blur(10px);
+}
+
+.confetti{
+  position:fixed;z-index:51;pointer-events:none;
+  width:6px;height:6px;
+  top:50%;left:50%;
+  opacity:0;
+}
+
+/* =========================
+   响应：屏宽自适应（缩放兜底）
+   ========================= */
+@media (max-width:1600px){
+  .hero-number{font-size:220px}
+  .hero-slash,.hero-total{font-size:68px}
+}
+@media (max-width:1280px){
+  .stage{padding:0 48px}
+  .hero-number{font-size:180px}
+  .hero-slash,.hero-total{font-size:56px}
+  .main{gap:48px}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-canvas"></div>
+<div class="noise"></div>
+<div class="grid-lines"></div>
+
+<div class="stage">
+
+  <!-- 顶栏 -->
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark">亿</div>
+      <div class="brand-name">
+        亿数集团
+        <span class="en">YISHU GROUP</span>
+      </div>
+    </div>
+    <div class="event-title">
+      <span class="deco"></span>
+      亿数嘉年华开业盛典
+      <span class="deco"></span>
+    </div>
+    <div class="countdown">
+      <span class="label">距开场</span>
+      <span class="time" id="countdown">00<span class="sep">:</span>14<span class="sep">:</span>26</span>
+    </div>
+  </header>
+
+  <!-- 主区 -->
+  <section class="main">
+
+    <!-- C位 -->
+    <div class="hero">
+      <div class="hero-eyebrow">
+        <span class="dot"></span>
+        <span class="text">Live Check-in · 现场签到</span>
+      </div>
+
+      <div class="hero-number-wrap">
+        <span class="hero-number bump" id="num">248</span>
+        <span class="hero-slash">/</span>
+        <span class="hero-total">300</span>
+      </div>
+
+      <div class="hero-meta">
+        <div class="item">
+          <div class="k">签到率</div>
+          <div class="v" id="rate">82.7<span class="unit">%</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="item">
+          <div class="k">每分钟</div>
+          <div class="v" id="rate-per-min">4.8<span class="unit">人/min</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="item">
+          <div class="k">预计完成</div>
+          <div class="v" id="eta">06:55</div>
+        </div>
+      </div>
+
+      <div class="hero-bar">
+        <div class="hero-bar-track">
+          <div class="hero-bar-fill" id="bar" style="width: 82.6667%;"></div>
+        </div>
+        <div class="hero-bar-marks">
+          <span>0</span><span>75</span><span>150</span><span>225</span><span>300</span>
+        </div>
+      </div>
+
+      <div class="hero-welcome active" id="welcome">
+        欢迎 <span class="name" id="welcome-name">许灵均</span> 共赴亿数未来
+      </div>
+    </div>
+
+    <!-- 姓名墙 -->
+    <div class="wall">
+      <div class="wall-head">
+        <div class="title">
+          实时签到
+          <span class="en">RECENT ARRIVALS</span>
+        </div>
+        <div class="live">
+          <span class="ring"></span>
+          <span>LIVE</span>
+        </div>
+      </div>
+      <ul class="wall-list" id="wall">
+    <li class="wall-item">
+      <div class="avatar">灵均</div>
+      <div class="who">
+        <div class="name">许灵均</div>
+        <div class="org">亿象生态 · 设计中心</div>
+      </div>
+      <div class="time">
+        <div>06:44:38</div>
+        <div class="rel">刚刚</div>
+      </div>
+    </li>
+  
+    <li class="wall-item">
+      <div class="avatar">雨桐</div>
+      <div class="who">
+        <div class="name">林雨桐</div>
+        <div class="org">亿象生态 · 内容运营</div>
+      </div>
+      <div class="time">
+        <div>06:44:23</div>
+        <div class="rel">14秒前</div>
+      </div>
+    </li>
+  
+    <li class="wall-item">
+      <div class="avatar">致远</div>
+      <div class="who">
+        <div class="name">陈致远</div>
+        <div class="org">国文汇通 · 合规部</div>
+      </div>
+      <div class="time">
+        <div>06:43:47</div>
+        <div class="rel">50秒前</div>
+      </div>
+    </li>
+  
+    <li class="wall-item">
+      <div class="avatar">慕白</div>
+      <div class="who">
+        <div class="name">周慕白</div>
+        <div class="org">亿数集团 · 总部</div>
+      </div>
+      <div class="time">
+        <div>06:43:00</div>
+        <div class="rel">1分钟前</div>
+      </div>
+    </li>
+  
+    <li class="wall-item">
+      <div class="avatar">启航</div>
+      <div class="who">
+        <div class="name">叶启航</div>
+        <div class="org">疯狂路亚 · 户外事业部</div>
+      </div>
+      <div class="time">
+        <div>06:41:59</div>
+        <div class="rel">2分钟前</div>
+      </div>
+    </li>
+  </ul>
+    </div>
+
+  </section>
+
+  <!-- 底栏 -->
+  <footer class="bottom">
+    <div class="left">YISHU CARNIVAL · GRAND OPENING</div>
+    <div class="center">
+      杭州滨江施强广场
+      <span class="deco"></span>
+      2026.06.27
+    </div>
+    <div class="right" id="now">06:44:41</div>
+  </footer>
+
+</div>
+
+<div class="burst active" id="burst"></div>
+
+<script>
+/* =========================
+   数据模拟
+   ========================= */
+const seedNames = [
+  {n:"张知远",o:"亿数集团 · 战略中心"},
+  {n:"林雨桐",o:"亿象生态 · 内容运营"},
+  {n:"陈致远",o:"国文汇通 · 合规部"},
+  {n:"苏婉清",o:"出发吧夏天 · 产品"},
+  {n:"周慕白",o:"亿数集团 · 总部"},
+  {n:"叶启航",o:"疯狂路亚 · 户外事业部"},
+  {n:"沈墨言",o:"亿数学院 · 讲师"},
+  {n:"赵清和",o:"亿数集团 · 投资部"},
+  {n:"许灵均",o:"亿象生态 · 设计中心"},
+  {n:"孟疏影",o:"国文汇通 · 数字资产"},
+  {n:"江南舟",o:"亿数集团 · 法务"},
+  {n:"白知秋",o:"出发吧夏天 · 运营"},
+];
+
+let count = 247;
+const total = 300;
+let recent = [
+  {n:"林雨桐",o:"亿象生态 · 内容运营",t:new Date(Date.now()-12*1000)},
+  {n:"陈致远",o:"国文汇通 · 合规部",t:new Date(Date.now()-48*1000)},
+  {n:"周慕白",o:"亿数集团 · 总部",t:new Date(Date.now()-95*1000)},
+  {n:"叶启航",o:"疯狂路亚 · 户外事业部",t:new Date(Date.now()-156*1000)},
+  {n:"沈墨言",o:"亿数学院 · 讲师",t:new Date(Date.now()-220*1000)},
+];
+
+/* =========================
+   渲染
+   ========================= */
+const $num = document.getElementById("num");
+const $rate = document.getElementById("rate");
+const $bar = document.getElementById("bar");
+const $eta = document.getElementById("eta");
+const $rpm = document.getElementById("rate-per-min");
+const $wall = document.getElementById("wall");
+const $welcome = document.getElementById("welcome");
+const $welcomeName = document.getElementById("welcome-name");
+const $burst = document.getElementById("burst");
+const $now = document.getElementById("now");
+const $countdown = document.getElementById("countdown");
+
+function fmtTime(d){
+  const h = String(d.getHours()).padStart(2,"0");
+  const m = String(d.getMinutes()).padStart(2,"0");
+  const s = String(d.getSeconds()).padStart(2,"0");
+  return `${h}:${m}:${s}`;
+}
+function fmtHM(d){
+  const h = String(d.getHours()).padStart(2,"0");
+  const m = String(d.getMinutes()).padStart(2,"0");
+  return `${h}:${m}`;
+}
+function relTime(d){
+  const diff = Math.floor((Date.now()-d.getTime())/1000);
+  if(diff<10) return "刚刚";
+  if(diff<60) return diff+"秒前";
+  if(diff<3600) return Math.floor(diff/60)+"分钟前";
+  return Math.floor(diff/3600)+"小时前";
+}
+function lastTwo(name){
+  return name.length>=2 ? name.slice(-2) : name;
+}
+
+function renderWall(){
+  $wall.innerHTML = recent.slice(0,5).map((p,i)=>`
+    <li class="wall-item">
+      <div class="avatar">${lastTwo(p.n)}</div>
+      <div class="who">
+        <div class="name">${p.n}</div>
+        <div class="org">${p.o}</div>
+      </div>
+      <div class="time">
+        <div>${fmtTime(p.t)}</div>
+        <div class="rel">${relTime(p.t)}</div>
+      </div>
+    </li>
+  `).join("");
+}
+
+function renderStats(){
+  $num.textContent = count;
+  const pct = (count/total*100);
+  $rate.innerHTML = pct.toFixed(1)+'<span class="unit">%</span>';
+  $bar.style.width = Math.min(pct,100)+"%";
+  // 每分钟（模拟）
+  const rpm = (3.5 + Math.random()*3).toFixed(1);
+  $rpm.innerHTML = rpm+'<span class="unit">人/min</span>';
+  // 预计完成
+  const remain = total - count;
+  if(remain>0){
+    const minutes = Math.ceil(remain / parseFloat(rpm));
+    const eta = new Date(Date.now()+minutes*60*1000);
+    $eta.textContent = fmtHM(eta);
+  } else {
+    $eta.textContent = "已完成";
+  }
+}
+
+/* =========================
+   新签到事件
+   ========================= */
+function newCheckin(){
+  if(count >= total) return;
+  // 取一个未在 recent 前 3 的名字
+  const candidates = seedNames.filter(s=>!recent.slice(0,3).find(r=>r.n===s.n));
+  const pick = candidates[Math.floor(Math.random()*candidates.length)];
+  const newPerson = {n:pick.n,o:pick.o,t:new Date()};
+
+  count += 1;
+  recent.unshift(newPerson);
+  recent = recent.slice(0,6);
+
+  // 数字跳动
+  $num.classList.remove("bump");
+  void $num.offsetWidth;
+  $num.classList.add("bump");
+
+  // 撒花
+  $burst.classList.remove("active");
+  void $burst.offsetWidth;
+  $burst.classList.add("active");
+  fireConfetti();
+
+  // 欢迎语
+  $welcomeName.textContent = newPerson.n;
+  $welcome.classList.remove("active");
+  void $welcome.offsetWidth;
+  $welcome.classList.add("active");
+  setTimeout(()=>$welcome.classList.remove("active"),5000);
+
+  renderStats();
+  renderWall();
+}
+
+/* 粒子撒花（简化 CSS+JS） */
+function fireConfetti(){
+  const colors = ["#5B5FC7","#8B8FE0","#C9A55C","#E5C988","#1A1B2E"];
+  for(let i=0;i<30;i++){
+    const c = document.createElement("div");
+    c.className = "confetti";
+    c.style.background = colors[i%colors.length];
+    c.style.left = (30 + Math.random()*40) + "%";
+    c.style.top = "55%";
+    const dx = (Math.random()-0.5)*800;
+    const dy = -(200 + Math.random()*400);
+    const rot = (Math.random()*720-360)+"deg";
+    c.style.transform = "translate(0,0) rotate(0)";
+    c.style.opacity = "1";
+    c.style.transition = "transform 1.6s cubic-bezier(0.16,1,0.3,1),opacity 1.6s ease-out";
+    document.body.appendChild(c);
+    requestAnimationFrame(()=>{
+      c.style.transform = `translate(${dx}px,${dy}px) rotate(${rot})`;
+      c.style.opacity = "0";
+    });
+    setTimeout(()=>c.remove(),1700);
+  }
+}
+
+/* =========================
+   时钟 & 倒计时
+   ========================= */
+function tickClock(){
+  $now.textContent = fmtTime(new Date());
+}
+let countdownSec = 14*60+32;
+function tickCountdown(){
+  if(countdownSec<=0){
+    $countdown.innerHTML = "00<span class='sep'>:</span>00<span class='sep'>:</span>00";
+    return;
+  }
+  countdownSec--;
+  const h = String(Math.floor(countdownSec/3600)).padStart(2,"0");
+  const m = String(Math.floor((countdownSec%3600)/60)).padStart(2,"0");
+  const s = String(countdownSec%60).padStart(2,"0");
+  $countdown.innerHTML = `${h}<span class='sep'>:</span>${m}<span class='sep'>:</span>${s}`;
+}
+
+/* =========================
+   启动
+   ========================= */
+renderStats();
+renderWall();
+setInterval(tickClock,1000);
+setInterval(tickCountdown,1000);
+// 演示：每 4-7 秒来一个新签到
+function loopCheckin(){
+  newCheckin();
+  setTimeout(loopCheckin, 4000+Math.random()*3000);
+}
+setTimeout(loopCheckin, 2500);
+// 每 30s 刷新一次 recent 的 rel time
+setInterval(renderWall, 30000);
+</script>
+
+
+</body></html>
