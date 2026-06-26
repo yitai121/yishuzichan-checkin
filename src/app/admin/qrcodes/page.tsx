@@ -30,16 +30,23 @@ export default function QRCodesPage() {
     fetch(`/api/attendees?meeting_id=${selectedMeeting}`).then((r) => r.json()).then((res) => { if (res.success) setAttendees(res.data); }).catch(() => {});
   }, [selectedMeeting]);
 
+  const [qrProgress, setQrProgress] = useState(0);
+
   const generateQRCodes = useCallback(async () => {
-    if (attendees.length === 0) return; setGenerating(true);
+    if (attendees.length === 0) return; setGenerating(true); setQrProgress(0);
     const urls: Record<string, string> = {};
-    for (const a of attendees) {
-      try { const qrData = JSON.stringify({ code: a.signin_code, attendee_id: a.id }); const dataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2, color: { dark: '#0F1117', light: '#FFFFFF' } }); urls[a.id] = dataUrl; } catch {}
+    const batchSize = 20;
+    for (let i = 0; i < attendees.length; i += batchSize) {
+      const batch = attendees.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (a) => {
+        try { const qrData = JSON.stringify({ code: a.signin_code, attendee_id: a.id }); const dataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2, color: { dark: '#0F1117', light: '#FFFFFF' } }); urls[a.id] = dataUrl; } catch {}
+      }));
+      setQrProgress(Math.min(i + batchSize, attendees.length));
     }
     setQrUrls(urls); setGenerating(false);
   }, [attendees]);
 
-  useEffect(() => { if (attendees.length > 0 && attendees.length <= 500) generateQRCodes(); }, [attendees, generateQRCodes]);
+  useEffect(() => { if (attendees.length > 0) generateQRCodes(); }, [attendees, generateQRCodes]);
 
   const downloadSingle = async (a: Attendee) => { const dataUrl = qrUrls[a.id]; if (!dataUrl) return; const link = document.createElement('a'); link.href = dataUrl; link.download = `${a.name}-签到码.png`; link.click(); };
 
@@ -90,7 +97,7 @@ export default function QRCodesPage() {
       </div>
 
       {generating ? (
-        <div className="card py-12 text-center"><Loader2 className="w-6 h-6 text-[#5B5FC7] animate-spin mx-auto mb-2" /><p className="text-[#525866] text-[12px]">正在生成二维码...</p></div>
+        <div className="card py-12 text-center"><Loader2 className="w-6 h-6 text-[#5B5FC7] animate-spin mx-auto mb-2" /><p className="text-[#525866] text-[12px]">正在生成二维码... {qrProgress}/{attendees.length}</p></div>
       ) : attendees.length === 0 ? (
         <div className="card py-12 text-center"><QrCode className="w-8 h-8 text-[#C9CDD4] mx-auto mb-2" strokeWidth={1.5} /><p className="text-[#525866] text-[12px]">暂无参会人，请先在参会名单中导入</p></div>
       ) : (
