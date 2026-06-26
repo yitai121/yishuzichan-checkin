@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase-server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 // GET /api/scanner-users/validate-session - Validate session token
 export async function GET(request: NextRequest) {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing session token' }, { status: 401 });
     }
 
-    const supabase = await createClient();
+    const supabase = getSupabaseClient();
     
     // Find user with matching session token
     const { data: user, error } = await supabase
