@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Validate phone
-      let phone = sanitizeString(a.phone, 20);
+      let phone: string | null = sanitizeString(a.phone, 20);
       if (phone) {
         // Remove spaces and dashes
         phone = phone.replace(/[\s-]/g, '');
@@ -84,8 +84,6 @@ export async function POST(request: NextRequest) {
           errors.push({ row, name, error: `手机号格式错误: ${a.phone}` });
           continue;
         }
-      } else {
-        phone = null;
       }
 
       // Check duplicate phone
