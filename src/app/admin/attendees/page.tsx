@@ -105,7 +105,20 @@ export default function AttendeesPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/attendees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meeting_id: selectedMeeting, attendees: previewData }) }).then((r) => r.json());
-      if (res.success) { showToast(`成功导入 ${res.count} 人`); setShowPreview(false); setPreviewData([]); fetchAttendees(); }
+      if (res.success) {
+        const { imported, skipped, failed, skippedDetails, errorDetails } = res.data;
+        let msg = `成功导入 ${imported} 人`;
+        if (skipped > 0) msg += `，跳过 ${skipped} 人（重复）`;
+        if (failed > 0) msg += `，失败 ${failed} 人`;
+        showToast(msg);
+        
+        // Show detailed results if there are issues
+        if (skipped > 0 || failed > 0) {
+          console.log('导入详情:', { skippedDetails, errorDetails });
+        }
+        
+        setShowPreview(false); setPreviewData([]); fetchAttendees();
+      }
       else { showToast(res.error || '导入失败'); }
     } catch { showToast('网络错误'); }
     setLoading(false);

@@ -51,22 +51,114 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    const records = attendeeList.map((a) => ({
-      meeting_id,
-      name: sanitizeString(a.name, 100) || '未命名',
-      phone: sanitizeString(a.phone, 20) || null,
-      position: sanitizeString(a.position, 100) || null,
-      company: sanitizeString(a.company, 100) || null,
-      note: sanitizeString(a.note, 500) || null,
-      signin_code: generateSigninCode(),
-    }));
+    
+    // Validation and deduplication
+    const validRecords: Array<{
+      meeting_id: string;
+      name: string;
+      phone: string | null;
+      position: string | null;
+      company: string | null;
+      note: string | null;
+      signin_code: string;
+      row: number;
+    }> = [];
+    const errors: Array<{ row: number; name: string; error: string }> = [];
+    const skipped: Array<{ row: number; name: string; phone: string; reason: string }> = [];
+    const seenPhones = new Set<string>();
 
-    const { data, error } = await client
-      .from('attendees')
-      .insert(records)
-      .select('id, meeting_id, name, phone, position, company, note, signin_code, created_at');
-    if (error) throw new Error(`导入失败: ${error.message}`);
-    return NextResponse.json({ success: true, data: data || [], count: data?.length || 0 });
+    for (let i = 0; i < attendeeList.length; i++) {
+      const a = attendeeList[i];
+      const row = i + 1;
+      const name = sanitizeString(a.name, 100);
+      
+      // Validate name
+      if (!name) {
+        errors.push({ row, name: a.name || '(空)', error: '姓名为空' });
+        continue;
+      }
+
+      // Validate phone
+      let phone = sanitizeString(a.phone, 20);
+      if (phone) {
+        // Remove spaces and dashes
+        phone = phone.replace(/[\s-]/g, '');
+        // Check if 11 digits
+        if (!/^\d{11}$/.test(phone)) {
+          errors.push({ row, name, error: `手机号格式错误: ${a.phone}` });
+          continue;
+        }
+      } else {
+        phone = null;
+      }
+
+      // Check duplicate phone
+      if (phone && seenPhones.has(phone)) {
+        skipped.push({ row, name, phone, reason: '手机号重复' });
+        continue;
+      }
+      if (phone) seenPhones.add(phone);
+
+      validRecords.push({
+        meeting_id,
+        name,
+        phone,
+        position: sanitizeString(a.position, 100) || null,
+        company: sanitizeString(a.company, 100) || null,
+        note: sanitizeString(a.note, 500) || null,
+        signin_code: generateSigninCode(),
+        row,
+      });
+    }
+
+    // Check for existing phones in database
+    if (validRecords.length > 0) {
+      const phonesToCheck = validRecords.filter(r => r.phone).map(r => r.phone!);
+      if (phonesToCheck.length > 0) {
+        const { data: existing } = await client
+          .from('attendees')
+          .select('phone')
+          .eq('meeting_id', meeting_id)
+          .in('phone', phonesToCheck);
+        
+        if (existing && existing.length > 0) {
+          const existingPhones = new Set(existing.map(e => e.phone));
+          const finalRecords = [];
+          for (const r of validRecords) {
+            if (r.phone && existingPhones.has(r.phone)) {
+              skipped.push({ row: r.row, name: r.name, phone: r.phone, reason: '手机号已存在' });
+            } else {
+              finalRecords.push(r);
+            }
+          }
+          validRecords.length = 0;
+          validRecords.push(...finalRecords);
+        }
+      }
+    }
+
+    // Insert valid records
+    let insertedCount = 0;
+    if (validRecords.length > 0) {
+      const recordsToInsert = validRecords.map(({ row, ...r }) => r);
+      const { data, error } = await client
+        .from('attendees')
+        .insert(recordsToInsert)
+        .select('id');
+      if (error) throw new Error(`导入失败: ${error.message}`);
+      insertedCount = data?.length || 0;
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        imported: insertedCount,
+        skipped: skipped.length,
+        failed: errors.length,
+        skippedDetails: skipped,
+        errorDetails: errors,
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : '未知错误';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
