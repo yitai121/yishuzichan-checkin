@@ -3,6 +3,7 @@ import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { verifyPassword } from "@/lib/password";
 import { sanitizeString } from "@/lib/validation";
 import { checkRateLimit, getClientIP } from "@/lib/rate-limit";
+import { randomUUID } from "crypto";
 
 // POST /api/scanner-users/login - Login for scanner users
 export async function POST(request: NextRequest) {
@@ -51,12 +52,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "用户名或密码错误" }, { status: 401 });
     }
 
-    // Return user info (no password hash)
+    // Generate session token (single device login - invalidates any previous session)
+    const sessionToken = randomUUID();
+    await supabase
+      .from("scanner_users")
+      .update({ session_token: sessionToken })
+      .eq("id", user.id);
+
+    // Return user info with session token
     return NextResponse.json({
       success: true,
       data: {
         id: user.id,
         username: user.username,
+        sessionToken,
       },
     });
   } catch (error: unknown) {

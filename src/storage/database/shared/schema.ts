@@ -13,6 +13,7 @@ export const scannerUsers = pgTable(
     username: text("username").notNull(),
     passwordHash: text("password_hash").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
+    sessionToken: text("session_token"),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

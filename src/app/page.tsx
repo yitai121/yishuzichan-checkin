@@ -75,9 +75,27 @@ export default function ScanPage() {
   useEffect(() => {
     setIsClient(true);
     const user = sessionStorage.getItem('scanner_user');
-    if (user) {
-      setIsLoggedIn(true);
-      setScannerUser(user);
+    const sessionToken = sessionStorage.getItem('scanner_session_token');
+    if (user && sessionToken) {
+      // Validate session token on mount
+      fetch('/api/scanner-users/validate-session', {
+        headers: { 'X-Session-Token': sessionToken },
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.success) {
+            setIsLoggedIn(true);
+            setScannerUser(user);
+          } else {
+            // Session invalidated by another device login
+            sessionStorage.removeItem('scanner_user');
+            sessionStorage.removeItem('scanner_session_token');
+          }
+        })
+        .catch(() => {
+          sessionStorage.removeItem('scanner_user');
+          sessionStorage.removeItem('scanner_session_token');
+        });
     }
   }, []);
 
@@ -165,6 +183,7 @@ export default function ScanPage() {
       const data = await res.json();
       if (data.success) {
         sessionStorage.setItem('scanner_user', username);
+        sessionStorage.setItem('scanner_session_token', data.data.sessionToken);
         setIsLoggedIn(true);
         setScannerUser(username);
       } else {
@@ -178,6 +197,7 @@ export default function ScanPage() {
 
   const handleLogout = () => {
     sessionStorage.removeItem('scanner_user');
+    sessionStorage.removeItem('scanner_session_token');
     setIsLoggedIn(false);
     setScannerUser('');
     if (scannerRef.current) {
@@ -193,10 +213,15 @@ export default function ScanPage() {
       if (p.code) parsed = p;
     } catch { /* plain code */ }
 
+    const sessionToken = sessionStorage.getItem('scanner_session_token');
+
     try {
       const res = await fetch('/api/checkin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Session-Token': sessionToken || '',
+        },
         body: JSON.stringify({
           signin_code: parsed.code,
           meeting_id: selectedMeeting,
@@ -204,6 +229,13 @@ export default function ScanPage() {
         }),
       });
       const data: ScanResult = await res.json();
+      
+      // Check if session was invalidated (another device logged in)
+      if (data.status === 'error' && data.message === '登录已失效，请重新登录') {
+        handleLogout();
+        return;
+      }
+      
       setResult(data);
       // Auto-clear after 3s for success/duplicate
       if (data.status !== 'error') {

@@ -21,6 +21,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate session token (single device login)
+    const sessionToken = request.headers.get('X-Session-Token');
+    if (!sessionToken) {
+      return NextResponse.json(
+        { success: false, error: '登录已失效，请重新登录', status: 'error', message: '登录已失效，请重新登录' },
+        { status: 401 }
+      );
+    }
+
+    // Verify session token is still valid (not replaced by another login)
+    const supabase = getSupabaseClient();
+    const { data: sessionUser } = await supabase
+      .from('scanner_users')
+      .select('id')
+      .eq('session_token', sessionToken)
+      .maybeSingle();
+
+    if (!sessionUser) {
+      return NextResponse.json(
+        { success: false, error: '登录已失效，请重新登录', status: 'error', message: '登录已失效，请重新登录' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { token, signin_code, meeting_id, device_info } = body as {
       token?: string;
