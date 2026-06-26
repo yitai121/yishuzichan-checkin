@@ -129,7 +129,7 @@ export default function MeetingsPage() {
             <div className="space-y-3">
               <div>
                 <label className="block text-[11px] font-medium text-[#525866] mb-1">会议名称 *</label>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="input-field" placeholder="如：亿数嘉年华开幕式" />
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="input-field" placeholder="如：亿数·山海归序开幕式" />
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-[#525866] mb-1">地点</label>

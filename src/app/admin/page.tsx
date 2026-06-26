@@ -46,7 +46,7 @@ export default function AdminLogin() {
           <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#5B5FC7] mb-3">
             <span className="text-white text-sm font-bold">亿</span>
           </div>
-          <h1 className="text-[18px] font-semibold text-[#0F1117] tracking-tight">亿数嘉年华</h1>
+          <h1 className="text-[18px] font-semibold text-[#0F1117] tracking-tight">亿数·山海归序</h1>
           <p className="text-[12px] text-[#99A0AE] mt-1">签到管理系统</p>
         </div>
 

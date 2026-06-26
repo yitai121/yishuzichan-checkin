@@ -228,7 +228,7 @@ export default function ScanPage() {
             <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center shadow-lg shadow-[#5B5FC7]/20">
               <span className="text-white text-xl font-bold">亿</span>
             </div>
-            <h1 className="text-xl font-semibold text-[#1F2937]">亿数嘉年华签到</h1>
+            <h1 className="text-xl font-semibold text-[#1F2937]">亿数·山海归序签到</h1>
             <p className="text-sm text-[#6B7280] mt-1">请使用扫码账号登录</p>
           </div>
 
@@ -293,7 +293,7 @@ export default function ScanPage() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#5B5FC7] to-[#7B7FD7] flex items-center justify-center">
                 <span className="text-white text-sm font-bold">亿</span>
               </div>
-              <span className="text-[#1F2937] text-sm font-medium">亿数嘉年华</span>
+              <span className="text-[#1F2937] text-sm font-medium">亿数·山海归序</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[#6B7280] text-xs">{scannerUser}</span>

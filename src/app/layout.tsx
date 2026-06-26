@@ -10,11 +10,11 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: '亿数嘉年华签到系统',
-    template: '%s | 亿数嘉年华签到系统',
+    default: '亿数·山海归序签到系统',
+    template: '%s | 亿数·山海归序签到系统',
   },
-  description: '亿数嘉年华会议现场二维码签到系统，支持扫码核验、实时签到看板、批量二维码生成与数据导出。',
-  keywords: ['签到系统', '会议签到', '二维码签到', '亿数嘉年华'],
+  description: '亿数·山海归序会议现场二维码签到系统，支持扫码核验、实时签到看板、批量二维码生成与数据导出。',
+  keywords: ['签到系统', '会议签到', '二维码签到', '亿数·山海归序'],
   generator: 'Coze Code',
   robots: {
     index: false,
