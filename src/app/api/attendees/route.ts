@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Limit batch size
-    if (attendeeList.length > 500) {
-      return NextResponse.json({ success: false, error: '单次导入不能超过500人' }, { status: 400 });
+    if (attendeeList.length > 1000) {
+      return NextResponse.json({ success: false, error: '单次导入不能超过1000人' }, { status: 400 });
     }
 
     const client = getSupabaseClient();
