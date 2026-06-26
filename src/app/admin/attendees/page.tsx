@@ -2,21 +2,19 @@
 
 import { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Plus, Upload, Loader2, X, Pencil, Trash2, Users, Search, CheckCircle, Clock, UserCheck } from 'lucide-react';
+import { Plus, Upload, Download, Loader2, X, Pencil, Trash2, Users, Search, CheckCircle, Clock, UserCheck } from 'lucide-react';
 
 interface Meeting { id: string; name: string; is_active: boolean; }
 interface Attendee { 
   id: string; 
   name: string; 
   phone: string | null; 
-  position: string | null; 
   company: string | null; 
-  note: string | null; 
   signin_code: string;
   checked_in: boolean;
   checkin_at: string | null;
 }
-interface PreviewRow { name: string; phone?: string; position?: string; company?: string; note?: string; }
+interface PreviewRow { name: string; phone?: string; company?: string; }
 
 export default function AttendeesPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -28,9 +26,7 @@ export default function AttendeesPage() {
   const [editingAttendee, setEditingAttendee] = useState<Attendee | null>(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editPosition, setEditPosition] = useState('');
   const [editCompany, setEditCompany] = useState('');
-  const [editNote, setEditNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,10 +83,8 @@ export default function AttendeesPage() {
         const json = XLSX.utils.sheet_to_json<Record<string, string>>(sheet);
         const rows: PreviewRow[] = json.map((row) => ({
           name: String(row['姓名'] || row['name'] || '').trim(),
-          phone: String(row['手机号'] || row['phone'] || '').trim(),
-          position: String(row['岗位'] || row['position'] || '').trim(),
-          company: String(row['单位'] || row['company'] || '').trim(),
-          note: String(row['备注'] || row['note'] || '').trim(),
+          phone: String(row['电话'] || row['手机号'] || row['phone'] || '').trim(),
+          company: String(row['所属分公司'] || row['单位'] || row['company'] || '').trim(),
         })).filter((r) => r.name);
         if (rows.length === 0) { showToast('未找到有效数据，请检查表头'); return; }
         setPreviewData(rows); setShowPreview(true);
@@ -131,16 +125,29 @@ export default function AttendeesPage() {
     else { showToast(res.error || '删除失败'); }
   };
 
-  const handleEdit = (a: Attendee) => { setEditingAttendee(a); setEditName(a.name); setEditPhone(a.phone || ''); setEditPosition(a.position || ''); setEditCompany(a.company || ''); setEditNote(a.note || ''); setShowEditForm(true); };
+  const handleEdit = (a: Attendee) => { setEditingAttendee(a); setEditName(a.name); setEditPhone(a.phone || ''); setEditCompany(a.company || ''); setShowEditForm(true); };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editingAttendee) return; setLoading(true);
     try {
-      const res = await fetch(`/api/attendees/${editingAttendee.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editName, phone: editPhone || null, position: editPosition || null, company: editCompany || null, note: editNote || null }) }).then((r) => r.json());
+      const res = await fetch(`/api/attendees/${editingAttendee.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editName, phone: editPhone || null, company: editCompany || null }) }).then((r) => r.json());
       if (res.success) { showToast('已更新'); setShowEditForm(false); fetchAttendees(); }
       else { showToast(res.error || '更新失败'); }
     } catch { showToast('网络错误'); }
     setLoading(false);
+  };
+
+  // Download Excel template
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      { '姓名': '张三', '电话': '13800138000', '所属分公司': '杭州分公司' },
+      { '姓名': '李四', '电话': '13900139000', '所属分公司': '上海分公司' },
+      { '姓名': '王五', '电话': '13700137000', '所属分公司': '北京分公司' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '参会人模板');
+    XLSX.writeFile(wb, '参会人导入模板.xlsx');
   };
 
   const handleAddSingle = async () => {
@@ -202,6 +209,7 @@ export default function AttendeesPage() {
             {meetings.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
           <button onClick={handleAddSingle} className="btn-secondary"><Plus className="w-3.5 h-3.5" />手动添加</button>
+          <button onClick={handleDownloadTemplate} className="btn-secondary"><Download className="w-3.5 h-3.5" />下载模板</button>
           <label className="btn-primary cursor-pointer"><Upload className="w-3.5 h-3.5" />上传 Excel<input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="hidden" /></label>
         </div>
       </div>
@@ -215,8 +223,8 @@ export default function AttendeesPage() {
             </div>
             <div className="flex-1 overflow-auto border border-[#E5E7EB] rounded-lg mb-3">
               <table className="w-full text-[12px]">
-                <thead className="table-header sticky top-0"><tr><th className="px-3 py-2 text-left font-medium text-[#525866]">姓名</th><th className="px-3 py-2 text-left font-medium text-[#525866]">手机号</th><th className="px-3 py-2 text-left font-medium text-[#525866]">岗位</th><th className="px-3 py-2 text-left font-medium text-[#525866]">单位</th></tr></thead>
-                <tbody>{previewData.map((row, i) => (<tr key={i} className="table-row border-t border-[#E5E7EB]"><td className="px-3 py-2 text-[#0F1117] font-medium">{row.name}</td><td className="px-3 py-2 text-[#525866]">{row.phone || '-'}</td><td className="px-3 py-2 text-[#525866]">{row.position || '-'}</td><td className="px-3 py-2 text-[#525866]">{row.company || '-'}</td></tr>))}</tbody>
+                <thead className="table-header sticky top-0"><tr><th className="px-3 py-2 text-left font-medium text-[#525866]">姓名</th><th className="px-3 py-2 text-left font-medium text-[#525866]">电话</th><th className="px-3 py-2 text-left font-medium text-[#525866]">所属分公司</th></tr></thead>
+                <tbody>{previewData.map((row, i) => (<tr key={i} className="table-row border-t border-[#E5E7EB]"><td className="px-3 py-2 text-[#0F1117] font-medium">{row.name}</td><td className="px-3 py-2 text-[#525866]">{row.phone || '-'}</td><td className="px-3 py-2 text-[#525866]">{row.company || '-'}</td></tr>))}</tbody>
               </table>
             </div>
             <div className="flex gap-2"><button onClick={() => setShowPreview(false)} className="btn-secondary flex-1 justify-center">取消</button><button onClick={handleImport} disabled={loading} className="btn-primary flex-1 justify-center disabled:opacity-50">{loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}{loading ? '导入中...' : '确认导入'}</button></div>
@@ -233,10 +241,8 @@ export default function AttendeesPage() {
             </div>
             <div className="space-y-2.5">
               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} required placeholder="姓名 *" className="input-field" />
-              <input type="text" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="手机号" className="input-field" />
-              <input type="text" value={editPosition} onChange={(e) => setEditPosition(e.target.value)} placeholder="岗位" className="input-field" />
-              <input type="text" value={editCompany} onChange={(e) => setEditCompany(e.target.value)} placeholder="单位" className="input-field" />
-              <input type="text" value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="备注" className="input-field" />
+              <input type="text" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="电话" className="input-field" />
+              <input type="text" value={editCompany} onChange={(e) => setEditCompany(e.target.value)} placeholder="所属分公司" className="input-field" />
             </div>
             <div className="flex gap-2 mt-3"><button type="button" onClick={() => setShowEditForm(false)} className="btn-secondary flex-1 justify-center">取消</button><button type="submit" disabled={loading} className="btn-primary flex-1 justify-center disabled:opacity-50">{loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}{loading ? '保存中...' : '保存'}</button></div>
           </form>
@@ -256,8 +262,8 @@ export default function AttendeesPage() {
               <thead className="table-header">
                 <tr>
                   <th className="px-4 py-2.5 text-left font-medium text-[#525866]">姓名</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">手机号</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">单位</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">电话</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-[#525866]">所属分公司</th>
                   <th className="px-4 py-2.5 text-left font-medium text-[#525866]">签到状态</th>
                   <th className="px-4 py-2.5 text-left font-medium text-[#525866]">签到时间</th>
                   <th className="px-4 py-2.5 text-right font-medium text-[#525866]">操作</th>

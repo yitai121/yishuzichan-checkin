@@ -118,7 +118,7 @@ export default function ScanPage() {
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { fps: 10, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
         (decodedText) => {
           const now = Date.now();
           if (decodedText === lastScanRef.current && now - lastScanTimeRef.current < 3000) return;

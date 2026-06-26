@@ -70,7 +70,7 @@ export default function ExportPage() {
             导出内容
           </h3>
           <ul className="space-y-1.5">
-            {['参会人姓名、手机号、岗位、单位、备注', '签到状态（已签到 / 未签到）', '签到时间'].map((item) => (
+            {['参会人姓名、电话、所属分公司', '签到状态（已签到 / 未签到）', '签到时间'].map((item) => (
               <li key={item} className="flex items-center gap-1.5 text-[11px] text-[#525866]">
                 <CheckCircle2 className="w-3 h-3 text-[#10B981] shrink-0" strokeWidth={2} />{item}
               </li>

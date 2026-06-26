@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const client = getSupabaseClient();
     const { data, error } = await client
       .from('attendees')
-      .select('id, meeting_id, name, phone, position, company, note, signin_code, created_at')
+      .select('id, meeting_id, name, phone, company, signin_code, created_at')
       .eq('meeting_id', meetingId)
       .order('created_at', { ascending: true });
     if (error) throw new Error(`查询失败: ${error.message}`);
@@ -32,9 +32,7 @@ export async function POST(request: NextRequest) {
       attendees?: Array<{
         name: string;
         phone?: string;
-        position?: string;
         company?: string;
-        note?: string;
       }>;
     };
 
@@ -57,9 +55,7 @@ export async function POST(request: NextRequest) {
       meeting_id: string;
       name: string;
       phone: string | null;
-      position: string | null;
       company: string | null;
-      note: string | null;
       signin_code: string;
       row: number;
     }> = [];
@@ -103,9 +99,7 @@ export async function POST(request: NextRequest) {
         meeting_id,
         name,
         phone,
-        position: sanitizeString(a.position, 100) || null,
         company: sanitizeString(a.company, 100) || null,
-        note: sanitizeString(a.note, 500) || null,
         signin_code: generateSigninCode(),
         row,
       });

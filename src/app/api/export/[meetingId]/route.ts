@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ mee
     // Get all attendees with checkin status
     const { data: attendees, error: attendeesError } = await client
       .from('attendees')
-      .select('id, name, phone, position, company, note, signin_code')
+      .select('id, name, phone, company, signin_code')
       .eq('meeting_id', meetingId)
       .order('name');
     if (attendeesError) throw new Error(`查询参会人失败: ${attendeesError.message}`);
@@ -40,13 +40,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ mee
     }
 
     const rows = (attendees || []).map((a) => ({
-      '\u59D3\u540D': a.name,
-      '\u624B\u673A\u53F7': a.phone || '',
-      '\u5C97\u4F4D': a.position || '',
-      '\u5355\u4F4D': a.company || '',
-      '\u5907\u6CE8': a.note || '',
-      '\u7B7E\u5230\u72B6\u6001': checkinMap.has(a.id) ? '\u5DF2\u7B7E\u5230' : '\u672A\u7B7E\u5230',
-      '\u7B7E\u5230\u65F6\u95F4': checkinMap.has(a.id)
+      '姓名': a.name,
+      '电话': a.phone || '',
+      '所属分公司': a.company || '',
+      '签到状态': checkinMap.has(a.id) ? '已签到' : '未签到',
+      '签到时间': checkinMap.has(a.id)
         ? new Date(checkinMap.get(a.id)!).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
         : '',
     }));
@@ -56,7 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ mee
     XLSX.utils.book_append_sheet(wb, ws, '\u7B7E\u5230\u8BB0\u5F55');
 
     ws['!cols'] = [
-      { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 20 },
+      { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 10 }, { wch: 20 },
     ];
 
     // Generate as base64 string
