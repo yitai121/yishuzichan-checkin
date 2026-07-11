@@ -458,7 +458,7 @@ export default function ScanPage() {
                 'text-[#991B1B]'
               }`}>
                 {result.status === 'success' ? '签到成功' :
-                 result.status === 'duplicate' ? '已签到' :
+                 result.status === 'duplicate' ? '今日已签到' :
                  '签到失败'}
               </h3>
               <p className={`text-sm mb-3 ${
@@ -483,7 +483,12 @@ export default function ScanPage() {
                   )}
                   {result.checkin_at && (
                     <p className="text-[#9CA3AF] text-xs mt-1">
-                      {new Date(result.checkin_at).toLocaleString('zh-CN')}
+                      {new Date(result.checkin_at).toLocaleString('zh-CN', { 
+                        month: 'long', 
+                        day: 'numeric',
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
                     </p>
                   )}
                 </div>
