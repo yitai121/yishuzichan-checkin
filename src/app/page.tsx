@@ -119,11 +119,16 @@ export default function ScanPage() {
   // Fetch stats
   useEffect(() => {
     if (!selectedMeeting) return;
-    fetch(`/api/stats/${selectedMeeting}`)
-      .then(r => r.json())
-      .then(d => { if (d.success) setStats(d.data); })
-      .catch(() => {});
-  }, [selectedMeeting, result]);
+    const fetchStats = () => {
+      fetch(`/api/stats/${selectedMeeting}`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setStats(d.data); })
+        .catch(() => {});
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 5000);
+    return () => clearInterval(interval);
+  }, [selectedMeeting]);
 
   // Start scanner
   const startScanner = useCallback(async () => {
@@ -136,7 +141,7 @@ export default function ScanPage() {
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
+        { fps: 5, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
         (decodedText) => {
           const now = Date.now();
           if (decodedText === lastScanRef.current && now - lastScanTimeRef.current < 3000) return;
