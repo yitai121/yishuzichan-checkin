@@ -82,24 +82,37 @@ export async function POST(request: NextRequest) {
 
     const client = getSupabaseClient();
 
-    // Find attendee by signin_code and meeting_id
-    let query = client
-      .from('attendees')
-      .select('id, name, phone, position, company, signin_code')
-      .eq('signin_code', resolvedCode)
-      .eq('meeting_id', meeting_id.trim())
-      .maybeSingle();
-
-    const { data: attendee, error: attendeeError } = await query;
-    if (attendeeError) throw new Error(`查询失败: ${attendeeError.message}`);
+    // Find attendee - use ID from token if available (faster), otherwise by signin_code
+    let attendee: { id: string; name: string; phone: string | null; position: string | null; company: string | null; signin_code: string } | null = null;
+    
+    if (resolvedAttendeeId) {
+      // Direct ID lookup (faster, from encrypted token)
+      const { data, error } = await client
+        .from('attendees')
+        .select('id, name, phone, position, company, signin_code')
+        .eq('id', resolvedAttendeeId)
+        .eq('meeting_id', meeting_id.trim())
+        .maybeSingle();
+      if (error) throw new Error(`查询失败: ${error.message}`);
+      // Verify signin_code matches if both are available
+      if (data && data.signin_code !== resolvedCode) {
+        return NextResponse.json({ success: false, error: '签到码与参会人不匹配', type: 'invalid' }, { status: 200 });
+      }
+      attendee = data;
+    } else {
+      // Lookup by signin_code (fallback)
+      const { data, error } = await client
+        .from('attendees')
+        .select('id, name, phone, position, company, signin_code')
+        .eq('signin_code', resolvedCode)
+        .eq('meeting_id', meeting_id.trim())
+        .maybeSingle();
+      if (error) throw new Error(`查询失败: ${error.message}`);
+      attendee = data;
+    }
 
     if (!attendee) {
       return NextResponse.json({ success: false, error: '签到码无效', type: 'invalid' }, { status: 200 });
-    }
-
-    // If token provided, verify attendee_id matches
-    if (resolvedAttendeeId && resolvedAttendeeId !== attendee.id) {
-      return NextResponse.json({ success: false, error: '签到码与参会人不匹配', type: 'invalid' }, { status: 200 });
     }
 
     // Check if already checked in for this day
@@ -163,13 +176,6 @@ export async function POST(request: NextRequest) {
       throw new Error(`签到失败: ${insertError.message}`);
     }
 
-    // Get today's checkin count for this meeting
-    const { count, error: countError } = await client
-      .from('checkins')
-      .select('*', { count: 'exact', head: true })
-      .eq('meeting_id', meeting_id.trim());
-    if (countError) throw new Error(`统计失败: ${countError.message}`);
-
     return NextResponse.json({
       success: true,
       data: {
@@ -178,7 +184,6 @@ export async function POST(request: NextRequest) {
         company: attendee.company,
         checkin_at: checkin.checkin_at,
         checkin_date: checkin.checkin_date,
-        checkin_number: count || 1,
       },
     });
   } catch (err) {

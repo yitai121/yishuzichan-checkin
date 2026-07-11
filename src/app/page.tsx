@@ -67,6 +67,7 @@ export default function ScanPage() {
   const [stats, setStats] = useState<Stats>({ total: 0, checked_in: 0 });
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const [cameraError, setCameraError] = useState<{ title: string; message: string } | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanRef = useRef<string>('');
@@ -213,6 +214,7 @@ export default function ScanPage() {
 
   const handleScan = async (code: string) => {
     const sessionToken = sessionStorage.getItem('scanner_session_token');
+    setVerifying(true);
 
     try {
       const res = await fetch('/api/checkin', {
@@ -265,12 +267,14 @@ export default function ScanPage() {
         };
       }
       
+      setVerifying(false);
       setResult(scanResult);
       // Auto-clear after 3s for success/duplicate
       if (scanResult.status !== 'error') {
         setTimeout(() => setResult(null), 3000);
       }
     } catch {
+      setVerifying(false);
       setResult({ status: 'error', message: '网络错误，请重试' });
     }
   };
@@ -462,6 +466,21 @@ export default function ScanPage() {
           </>
         )}
       </div>
+
+      {/* Verifying overlay - shows immediately when QR is scanned */}
+      {verifying && !result && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/40 backdrop-blur-sm animate-[fadeIn_100ms_ease-out]">
+          <div className="w-full max-w-sm rounded-2xl p-6 shadow-xl bg-white border border-[#E5E7EB] animate-[slideUp_200ms_ease-out]">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-14 h-14 rounded-full bg-[#EEEDFB] flex items-center justify-center mb-3">
+                <RefreshCw className="w-7 h-7 text-[#5B5FC7] animate-spin" strokeWidth={1.5} />
+              </div>
+              <h3 className="text-lg font-semibold text-[#1F2937] mb-1">验证中...</h3>
+              <p className="text-sm text-[#6B7280]">正在核验签到信息</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Result overlay */}
       {result && (
