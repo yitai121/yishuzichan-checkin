@@ -7,17 +7,51 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const meetingId = searchParams.get('meeting_id');
+    const checkinDate = searchParams.get('checkin_date') || new Date().toISOString().split('T')[0];
+    
     if (!meetingId || !isValidUUID(meetingId)) {
       return NextResponse.json({ success: false, error: '缺少有效的 meeting_id 参数' }, { status: 400 });
     }
     const client = getSupabaseClient();
-    const { data, error } = await client
+    
+    // Fetch attendees
+    const { data: attendees, error } = await client
       .from('attendees')
       .select('id, meeting_id, name, phone, company, signin_code, created_at')
       .eq('meeting_id', meetingId)
       .order('created_at', { ascending: true });
     if (error) throw new Error(`查询失败: ${error.message}`);
-    return NextResponse.json({ success: true, data: data || [] });
+    
+    if (!attendees || attendees.length === 0) {
+      return NextResponse.json({ success: true, data: [] });
+    }
+    
+    // Fetch today's check-in records for all attendees in this meeting (single query)
+    const attendeeIds = attendees.map(a => a.id);
+    const { data: checkins, error: checkinError } = await client
+      .from('checkins')
+      .select('attendee_id, checkin_at, checkin_date')
+      .eq('meeting_id', meetingId)
+      .eq('checkin_date', checkinDate)
+      .in('attendee_id', attendeeIds);
+    if (checkinError) throw new Error(`查询签到记录失败: ${checkinError.message}`);
+    
+    // Build a map of attendee_id -> checkin info
+    const checkinMap = new Map<string, { checked_in: boolean; checkin_at: string | null }>();
+    if (checkins) {
+      for (const c of checkins) {
+        checkinMap.set(c.attendee_id, { checked_in: true, checkin_at: c.checkin_at });
+      }
+    }
+    
+    // Merge check-in status into attendees
+    const result = attendees.map(a => ({
+      ...a,
+      checked_in: checkinMap.has(a.id),
+      checkin_at: checkinMap.get(a.id)?.checkin_at || null,
+    }));
+    
+    return NextResponse.json({ success: true, data: result });
   } catch (err) {
     const message = err instanceof Error ? err.message : '未知错误';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

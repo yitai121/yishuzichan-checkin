@@ -48,27 +48,15 @@ export default function AttendeesPage() {
   useEffect(() => {
     if (!selectedMeeting) return;
     fetchAttendees();
+    // Auto-refresh every 10 seconds to keep check-in status updated
+    const interval = setInterval(fetchAttendees, 10000);
+    return () => clearInterval(interval);
   }, [selectedMeeting]);
 
   const fetchAttendees = async () => {
     const res = await fetch(`/api/attendees?meeting_id=${selectedMeeting}`).then((r) => r.json());
     if (res.success) {
-      // Fetch check-in status for each attendee
-      const attendeesWithStatus = await Promise.all(
-        res.data.map(async (a: Attendee) => {
-          try {
-            const checkinRes = await fetch(`/api/checkin?attendee_id=${a.id}&meeting_id=${selectedMeeting}`).then((r) => r.json());
-            return {
-              ...a,
-              checked_in: checkinRes.success && checkinRes.data?.checked_in,
-              checkin_at: checkinRes.success ? checkinRes.data?.checkin_at : null,
-            };
-          } catch {
-            return { ...a, checked_in: false, checkin_at: null };
-          }
-        })
-      );
-      setAttendees(attendeesWithStatus);
+      setAttendees(res.data);
     }
   };
 
