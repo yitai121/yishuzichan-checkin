@@ -83,7 +83,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="text-white text-sm font-bold">亿</span>
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-[#0F1117] leading-tight tracking-tight">亿数·山海归序</h1>
+            <h1 className="text-sm font-semibold text-[#0F1117] leading-tight tracking-tight">亿数集团</h1>
             <p className="text-[10px] text-[#99A0AE] leading-tight">签到管理系统</p>
           </div>
         </div>
