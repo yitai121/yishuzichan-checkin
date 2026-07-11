@@ -212,12 +212,6 @@ export default function ScanPage() {
   };
 
   const handleScan = async (code: string) => {
-    let parsed = { code, attendee_id: '' };
-    try {
-      const p = JSON.parse(code);
-      if (p.code) parsed = p;
-    } catch { /* plain code */ }
-
     const sessionToken = sessionStorage.getItem('scanner_session_token');
 
     try {
@@ -228,9 +222,8 @@ export default function ScanPage() {
           'X-Session-Token': sessionToken || '',
         },
         body: JSON.stringify({
-          signin_code: parsed.code,
+          token: code,
           meeting_id: selectedMeeting,
-          attendee_id: parsed.attendee_id,
         }),
       });
       const data: ScanResult = await res.json();
