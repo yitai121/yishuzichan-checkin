@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
-import { Download, Loader2, QrCode, FileDown } from 'lucide-react';
+import { Download, Loader2, QrCode, Archive } from 'lucide-react';
 
 interface Meeting { id: string; name: string; is_active: boolean; }
 interface Attendee { id: string; name: string; position: string | null; company: string | null; signin_code: string; }
@@ -50,29 +50,33 @@ export default function QRCodesPage() {
 
   const downloadSingle = async (a: Attendee) => { const dataUrl = qrUrls[a.id]; if (!dataUrl) return; const link = document.createElement('a'); link.href = dataUrl; link.download = `${a.name}-签到码.png`; link.click(); };
 
-  const downloadAllPDF = async () => {
-    if (attendees.length === 0) return; setLoading(true); showToast('正在生成 PDF...');
+  const downloadAllZIP = async () => {
+    if (attendees.length === 0) return; setLoading(true); showToast('正在生成 ZIP 压缩包...');
     try {
-      const { default: jsPDF } = await import('jspdf'); const { default: html2canvas } = await import('html2canvas');
-      const container = document.createElement('div'); container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;padding:15px;background:white;'; document.body.appendChild(container);
-      const pdf = new jsPDF('p', 'mm', 'a4'); const itemsPerPage = 16;
-      for (let page = 0; page < Math.ceil(attendees.length / itemsPerPage); page++) {
-        if (page > 0) pdf.addPage();
-        const pageAttendees = attendees.slice(page * itemsPerPage, (page + 1) * itemsPerPage); container.innerHTML = '';
-        const grid = document.createElement('div'); grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;';
-        for (const a of pageAttendees) {
-          const cell = document.createElement('div'); cell.style.cssText = 'text-align:center;padding:5px;';
-          const qrData = JSON.stringify({ code: a.signin_code, attendee_id: a.id });
-          const qrDataUrl = await QRCode.toDataURL(qrData, { width: 120, margin: 1, color: { dark: '#0F1117', light: '#FFFFFF' } });
-          cell.innerHTML = `<img src="${qrDataUrl}" style="width:90px;height:90px;margin:0 auto;display:block;" /><div style="margin-top:4px;font-size:11px;font-weight:600;color:#0F1117;">${a.name}</div>`;
-          grid.appendChild(cell);
-        }
-        container.appendChild(grid); await new Promise((resolve) => setTimeout(resolve, 100));
-        const canvas = await html2canvas(container, { scale: 2, useCORS: true }); const imgData = canvas.toDataURL('image/png'); pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      const batchSize = 20;
+      for (let i = 0; i < attendees.length; i += batchSize) {
+        const batch = attendees.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (a) => {
+          try {
+            const qrData = JSON.stringify({ code: a.signin_code, attendee_id: a.id });
+            const dataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2, color: { dark: '#0F1117', light: '#FFFFFF' } });
+            const base64 = dataUrl.split(',')[1];
+            zip.file(`${a.name}.png`, base64, { base64: true });
+          } catch {}
+        }));
+        setQrProgress(Math.min(i + batchSize, attendees.length));
       }
-      document.body.removeChild(container);
-      const meeting = meetings.find((m) => m.id === selectedMeeting); pdf.save(`${meeting?.name || '签到'}-二维码.pdf`); showToast('PDF 已下载');
-    } catch (err) { showToast('PDF 生成失败'); console.error(err); }
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const meeting = meetings.find((m) => m.id === selectedMeeting);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${meeting?.name || '签到'}-二维码.zip`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      showToast('ZIP 压缩包已下载');
+    } catch (err) { showToast('ZIP 生成失败'); console.error(err); }
     setLoading(false);
   };
 
@@ -89,9 +93,9 @@ export default function QRCodesPage() {
           <select value={selectedMeeting} onChange={(e) => setSelectedMeeting(e.target.value)} className="input-field w-auto text-[12px] font-medium">
             {meetings.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
-          <button onClick={downloadAllPDF} disabled={loading || attendees.length === 0} className="btn-primary disabled:opacity-50">
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-            {loading ? '生成中...' : '下载全部 PDF'}
+          <button onClick={downloadAllZIP} disabled={loading || attendees.length === 0} className="btn-primary disabled:opacity-50">
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />}
+            {loading ? '生成中...' : '下载全部 ZIP'}
           </button>
         </div>
       </div>
