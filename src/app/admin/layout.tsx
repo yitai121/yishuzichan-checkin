@@ -79,9 +79,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Brand */}
       <div className="h-14 px-4 flex items-center border-b border-[#EBEDF0] shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#5B5FC7] to-[#4A4EB5] flex items-center justify-center shadow-sm">
-            <span className="text-white text-sm font-bold">亿</span>
-          </div>
+          <img src="/logo.png" alt="亿数集团" className="w-8 h-8 rounded-lg object-contain" />
           <div>
             <h1 className="text-sm font-semibold text-[#0F1117] leading-tight tracking-tight">亿数集团</h1>
             <p className="text-[10px] text-[#99A0AE] leading-tight">签到管理系统</p>

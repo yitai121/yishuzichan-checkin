@@ -43,8 +43,8 @@ export default function AdminLogin() {
       <div className="w-full max-w-[320px] animate-fade-in-up">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#5B5FC7] mb-3">
-            <span className="text-white text-sm font-bold">亿</span>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-white border border-[#E5E7EB] mb-3 overflow-hidden">
+            <img src="/logo.png" alt="亿数集团" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-[18px] font-semibold text-[#0F1117] tracking-tight">亿数集团</h1>
           <p className="text-[12px] text-[#99A0AE] mt-1">签到管理系统</p>
