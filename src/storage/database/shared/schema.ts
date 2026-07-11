@@ -64,12 +64,13 @@ export const checkins = pgTable(
     attendee_id: text("attendee_id").notNull().references(() => attendees.id, { onDelete: "cascade" }),
     meeting_id: text("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
     checkin_at: timestamp("checkin_at", { withTimezone: true }).defaultNow().notNull(),
+    checkin_date: date("checkin_date").default(sql`CURRENT_DATE`).notNull(),
     device_info: text("device_info"),
   },
   (table) => [
     index("checkins_attendee_id_idx").on(table.attendee_id),
     index("checkins_meeting_id_idx").on(table.meeting_id),
     index("checkins_checkin_at_idx").on(table.checkin_at),
-    uniqueIndex("checkins_attendee_meeting_unique_idx").on(table.attendee_id, table.meeting_id),
+    uniqueIndex("checkins_attendee_meeting_date_unique_idx").on(table.attendee_id, table.meeting_id, table.checkin_date),
   ]
 );

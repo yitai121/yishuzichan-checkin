@@ -46,12 +46,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { token, signin_code, meeting_id, device_info } = body as {
+    const { token, signin_code, meeting_id, device_info, day } = body as {
       token?: string;
       signin_code?: string;
       meeting_id?: string;
       device_info?: string;
+      day?: string; // Format: YYYY-MM-DD, defaults to today
     };
+
+    // Determine check-in date (default to today)
+    const checkinDate = day?.trim() || new Date().toISOString().split('T')[0];
 
     if (!meeting_id?.trim()) {
       return NextResponse.json({ success: false, error: '未选择会议', type: 'invalid' }, { status: 400 });
@@ -98,25 +102,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '签到码与参会人不匹配', type: 'invalid' }, { status: 200 });
     }
 
-    // Check if already checked in
+    // Check if already checked in for this day
     const { data: existingCheckin, error: checkError } = await client
       .from('checkins')
-      .select('id, checkin_at')
+      .select('id, checkin_at, checkin_date')
       .eq('attendee_id', attendee.id)
       .eq('meeting_id', meeting_id.trim())
+      .eq('checkin_date', checkinDate)
       .maybeSingle();
     if (checkError) throw new Error(`查询签到记录失败: ${checkError.message}`);
 
     if (existingCheckin) {
       return NextResponse.json({
         success: false,
-        error: '已签到',
+        error: `今天(${checkinDate})已签到`,
         type: 'duplicate',
         data: {
           name: attendee.name,
           position: attendee.position,
           company: attendee.company,
           checkin_at: existingCheckin.checkin_at,
+          checkin_date: existingCheckin.checkin_date,
         },
       });
     }
@@ -128,6 +134,7 @@ export async function POST(request: NextRequest) {
         attendee_id: attendee.id,
         meeting_id: meeting_id.trim(),
         device_info: device_info || null,
+        checkin_date: checkinDate,
       })
       .select()
       .single();
@@ -170,6 +177,7 @@ export async function POST(request: NextRequest) {
         position: attendee.position,
         company: attendee.company,
         checkin_at: checkin.checkin_at,
+        checkin_date: checkin.checkin_date,
         checkin_number: count || 1,
       },
     });
