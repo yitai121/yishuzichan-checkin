@@ -81,8 +81,8 @@ export function verifyQRToken(token: string): { code: string; aid: string; ts: n
     const payload = JSON.parse(decrypted);
     if (!payload.code || !payload.aid) return null;
 
-    // Optional: check token age (reject tokens older than 24 hours)
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    // Optional: check token age (reject tokens older than 7 days for multi-day events)
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
     if (payload.ts && Date.now() - payload.ts > maxAge) {
       return null; // Token expired
     }

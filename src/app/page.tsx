@@ -226,17 +226,48 @@ export default function ScanPage() {
           meeting_id: selectedMeeting,
         }),
       });
-      const data: ScanResult = await res.json();
+      const data = await res.json();
       
       // Check if session was invalidated (another device logged in)
-      if (data.status === 'error' && data.message === '登录已失效，请重新登录') {
+      if (data.error === '登录已失效，请重新登录') {
         handleLogout();
         return;
       }
       
-      setResult(data);
+      // Map API response to ScanResult format
+      let scanResult: ScanResult;
+      if (data.success) {
+        scanResult = {
+          status: 'success',
+          message: '签到成功',
+          attendee: {
+            name: data.data?.name || '',
+            position: data.data?.position || '',
+            company: data.data?.company || '',
+          },
+          checkin_at: data.data?.checkin_at,
+        };
+      } else if (data.type === 'duplicate') {
+        scanResult = {
+          status: 'duplicate',
+          message: data.error || '已签到',
+          attendee: {
+            name: data.data?.name || '',
+            position: data.data?.position || '',
+            company: data.data?.company || '',
+          },
+          checkin_at: data.data?.checkin_at,
+        };
+      } else {
+        scanResult = {
+          status: 'error',
+          message: data.error || '签到失败',
+        };
+      }
+      
+      setResult(scanResult);
       // Auto-clear after 3s for success/duplicate
-      if (data.status !== 'error') {
+      if (scanResult.status !== 'error') {
         setTimeout(() => setResult(null), 3000);
       }
     } catch {
