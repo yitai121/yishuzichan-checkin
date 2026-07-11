@@ -54,17 +54,17 @@ export default function QRCodesPage() {
     if (attendees.length === 0) return; setLoading(true); showToast('正在生成 PDF...');
     try {
       const { default: jsPDF } = await import('jspdf'); const { default: html2canvas } = await import('html2canvas');
-      const container = document.createElement('div'); container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;padding:20px;background:white;'; document.body.appendChild(container);
-      const pdf = new jsPDF('p', 'mm', 'a4'); const itemsPerPage = 9;
+      const container = document.createElement('div'); container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;padding:15px;background:white;'; document.body.appendChild(container);
+      const pdf = new jsPDF('p', 'mm', 'a4'); const itemsPerPage = 16;
       for (let page = 0; page < Math.ceil(attendees.length / itemsPerPage); page++) {
         if (page > 0) pdf.addPage();
         const pageAttendees = attendees.slice(page * itemsPerPage, (page + 1) * itemsPerPage); container.innerHTML = '';
-        const grid = document.createElement('div'); grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:15px;';
+        const grid = document.createElement('div'); grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;';
         for (const a of pageAttendees) {
-          const cell = document.createElement('div'); cell.style.cssText = 'text-align:center;padding:10px;';
+          const cell = document.createElement('div'); cell.style.cssText = 'text-align:center;padding:5px;';
           const qrData = JSON.stringify({ code: a.signin_code, attendee_id: a.id });
-          const qrDataUrl = await QRCode.toDataURL(qrData, { width: 150, margin: 1, color: { dark: '#0F1117', light: '#FFFFFF' } });
-          cell.innerHTML = `<img src="${qrDataUrl}" style="width:120px;height:120px;margin:0 auto;display:block;" /><div style="margin-top:6px;font-size:13px;font-weight:600;color:#0F1117;">${a.name}</div><div style="font-size:11px;color:#525866;">${a.position || ''}</div>`;
+          const qrDataUrl = await QRCode.toDataURL(qrData, { width: 120, margin: 1, color: { dark: '#0F1117', light: '#FFFFFF' } });
+          cell.innerHTML = `<img src="${qrDataUrl}" style="width:90px;height:90px;margin:0 auto;display:block;" /><div style="margin-top:4px;font-size:11px;font-weight:600;color:#0F1117;">${a.name}</div>`;
           grid.appendChild(cell);
         }
         container.appendChild(grid); await new Promise((resolve) => setTimeout(resolve, 100));
