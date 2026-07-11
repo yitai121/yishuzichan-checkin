@@ -35,12 +35,28 @@ export default function QRCodesPage() {
   const generateQRCodes = useCallback(async () => {
     if (attendees.length === 0) return; setGenerating(true); setQrProgress(0);
     const urls: Record<string, string> = {};
-    const batchSize = 20;
+    const batchSize = 50;
     for (let i = 0; i < attendees.length; i += batchSize) {
       const batch = attendees.slice(i, i + batchSize);
-      await Promise.all(batch.map(async (a) => {
-        try { const qrData = JSON.stringify({ code: a.signin_code, attendee_id: a.id }); const dataUrl = await QRCode.toDataURL(qrData, { width: 200, margin: 2, color: { dark: '#0F1117', light: '#FFFFFF' } }); urls[a.id] = dataUrl; } catch {}
-      }));
+      try {
+        // Use batch API to generate encrypted tokens
+        const res = await fetch('/api/qrcode/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attendees: batch.map(a => ({ id: a.id, signin_code: a.signin_code })) }),
+        });
+        const data = await res.json();
+        if (data.success && data.data.tokens) {
+          // Generate QR code images from encrypted tokens
+          await Promise.all(batch.map(async (a) => {
+            const token = data.data.tokens[a.id];
+            if (token) {
+              const dataUrl = await QRCode.toDataURL(token, { width: 200, margin: 2, color: { dark: '#0F1117', light: '#FFFFFF' } });
+              urls[a.id] = dataUrl;
+            }
+          }));
+        }
+      } catch {}
       setQrProgress(Math.min(i + batchSize, attendees.length));
     }
     setQrUrls(urls); setGenerating(false);
@@ -55,17 +71,28 @@ export default function QRCodesPage() {
     try {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
-      const batchSize = 20;
+      const batchSize = 50;
       for (let i = 0; i < attendees.length; i += batchSize) {
         const batch = attendees.slice(i, i + batchSize);
-        await Promise.all(batch.map(async (a) => {
-          try {
-            const qrData = JSON.stringify({ code: a.signin_code, attendee_id: a.id });
-            const dataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2, color: { dark: '#0F1117', light: '#FFFFFF' } });
-            const base64 = dataUrl.split(',')[1];
-            zip.file(`${a.name}.png`, base64, { base64: true });
-          } catch {}
-        }));
+        try {
+          // Use batch API to generate encrypted tokens
+          const res = await fetch('/api/qrcode/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attendees: batch.map(a => ({ id: a.id, signin_code: a.signin_code })) }),
+          });
+          const data = await res.json();
+          if (data.success && data.data.tokens) {
+            await Promise.all(batch.map(async (a) => {
+              const token = data.data.tokens[a.id];
+              if (token) {
+                const dataUrl = await QRCode.toDataURL(token, { width: 300, margin: 2, color: { dark: '#0F1117', light: '#FFFFFF' } });
+                const base64 = dataUrl.split(',')[1];
+                zip.file(`${a.name}.png`, base64, { base64: true });
+              }
+            }));
+          }
+        } catch {}
         setQrProgress(Math.min(i + batchSize, attendees.length));
       }
       const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
