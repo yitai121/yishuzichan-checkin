@@ -72,6 +72,8 @@ export default function ScanPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanRef = useRef<string>('');
   const lastScanTimeRef = useRef<number>(0);
+  const resultRef = useRef<ScanResult | null>(null);
+  const verifyingRef = useRef<boolean>(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -144,8 +146,8 @@ export default function ScanPage() {
         { facingMode: 'environment' },
         { fps: 5, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
         (decodedText) => {
-          // Block scanning while verifying or showing result
-          if (verifying || result) return;
+          // Block scanning while verifying or showing result (use refs for latest values)
+          if (verifyingRef.current || resultRef.current) return;
           
           const now = Date.now();
           if (decodedText === lastScanRef.current && now - lastScanTimeRef.current < 3000) return;
@@ -218,6 +220,7 @@ export default function ScanPage() {
   const handleScan = async (code: string) => {
     const sessionToken = sessionStorage.getItem('scanner_session_token');
     setVerifying(true);
+    verifyingRef.current = true;
 
     try {
       const res = await fetch('/api/checkin', {
@@ -271,17 +274,26 @@ export default function ScanPage() {
       }
       
       setVerifying(false);
+      verifyingRef.current = false;
       setResult(scanResult);
-      // Don't auto-clear - user must click to continue (security: prevents fake QR from being scanned while result is showing)
+      resultRef.current = scanResult;
+      // Auto-clear result after 2.5 seconds, then scanner resumes automatically
+      setTimeout(() => {
+        setResult(null);
+        resultRef.current = null;
+      }, 2500);
     } catch {
       setVerifying(false);
-      setResult({ status: 'error', message: '网络错误，请重试' });
+      verifyingRef.current = false;
+      const errorResult = { status: 'error' as const, message: '网络错误，请重试' };
+      setResult(errorResult);
+      resultRef.current = errorResult;
+      // Auto-clear error after 2.5 seconds
+      setTimeout(() => {
+        setResult(null);
+        resultRef.current = null;
+      }, 2500);
     }
-  };
-
-  // Clear result and resume scanning
-  const handleContinueScanning = () => {
-    setResult(null);
   };
 
   const progress = stats.total > 0 ? (stats.checked_in / stats.total) * 100 : 0;
@@ -546,17 +558,6 @@ export default function ScanPage() {
                   )}
                 </div>
               )}
-              {/* Continue scanning button - required for security */}
-              <button
-                onClick={handleContinueScanning}
-                className={`mt-4 w-full py-3 rounded-xl font-semibold text-base transition-all active:scale-[0.98] ${
-                  result.status === 'success' ? 'bg-[#10B981] text-white' :
-                  result.status === 'duplicate' ? 'bg-[#F59E0B] text-white' :
-                  'bg-[#EF4444] text-white'
-                }`}
-              >
-                {result.status === 'error' ? '重新扫码' : '继续扫码'}
-              </button>
             </div>
           </div>
         </div>
