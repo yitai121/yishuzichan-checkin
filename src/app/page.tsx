@@ -144,6 +144,9 @@ export default function ScanPage() {
         { facingMode: 'environment' },
         { fps: 5, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
         (decodedText) => {
+          // Block scanning while verifying or showing result
+          if (verifying || result) return;
+          
           const now = Date.now();
           if (decodedText === lastScanRef.current && now - lastScanTimeRef.current < 3000) return;
           lastScanRef.current = decodedText;
@@ -157,7 +160,7 @@ export default function ScanPage() {
       setCameraError(getCameraErrorMessage(err));
       scannerRef.current = null;
     }
-  }, [selectedMeeting]);
+  }, [selectedMeeting, verifying, result]);
 
   // Auto-start scanner when meeting selected
   useEffect(() => {
@@ -269,14 +272,16 @@ export default function ScanPage() {
       
       setVerifying(false);
       setResult(scanResult);
-      // Auto-clear after 3s for success/duplicate
-      if (scanResult.status !== 'error') {
-        setTimeout(() => setResult(null), 3000);
-      }
+      // Don't auto-clear - user must click to continue (security: prevents fake QR from being scanned while result is showing)
     } catch {
       setVerifying(false);
       setResult({ status: 'error', message: '网络错误，请重试' });
     }
+  };
+
+  // Clear result and resume scanning
+  const handleContinueScanning = () => {
+    setResult(null);
   };
 
   const progress = stats.total > 0 ? (stats.checked_in / stats.total) * 100 : 0;
@@ -541,6 +546,17 @@ export default function ScanPage() {
                   )}
                 </div>
               )}
+              {/* Continue scanning button - required for security */}
+              <button
+                onClick={handleContinueScanning}
+                className={`mt-4 w-full py-3 rounded-xl font-semibold text-base transition-all active:scale-[0.98] ${
+                  result.status === 'success' ? 'bg-[#10B981] text-white' :
+                  result.status === 'duplicate' ? 'bg-[#F59E0B] text-white' :
+                  'bg-[#EF4444] text-white'
+                }`}
+              >
+                {result.status === 'error' ? '重新扫码' : '继续扫码'}
+              </button>
             </div>
           </div>
         </div>
