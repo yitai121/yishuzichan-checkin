@@ -3,6 +3,10 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { verifyQRToken } from '@/lib/crypto';
 import { checkRateLimit, getClientIP, rateLimitKey } from '@/lib/rate-limit';
 
+// Session token cache (reduces DB queries for session validation)
+const sessionCache = new Map<string, { userId: string; timestamp: number }>();
+const SESSION_CACHE_TTL = 30000; // 30 seconds cache for session validation
+
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting: max 600 checkin attempts per minute per IP (support 10-20 devices on same network)
@@ -30,19 +34,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify session token is still valid (not replaced by another login)
-    const supabase = getSupabaseClient();
-    const { data: sessionUser } = await supabase
-      .from('scanner_users')
-      .select('id')
-      .eq('session_token', sessionToken)
-      .maybeSingle();
+    // Check session cache first (reduces DB queries for high-frequency scanning)
+    const cachedSession = sessionCache.get(sessionToken);
+    let sessionUserId: string | null = null;
+    
+    if (cachedSession && Date.now() - cachedSession.timestamp < SESSION_CACHE_TTL) {
+      sessionUserId = cachedSession.userId;
+    } else {
+      // Verify session token is still valid (not replaced by another login)
+      const supabase = getSupabaseClient();
+      const { data: sessionUser } = await supabase
+        .from('scanner_users')
+        .select('id')
+        .eq('session_token', sessionToken)
+        .maybeSingle();
 
-    if (!sessionUser) {
-      return NextResponse.json(
-        { success: false, error: '登录已失效，请重新登录', status: 'error', message: '登录已失效，请重新登录' },
-        { status: 401 }
-      );
+      if (!sessionUser) {
+        return NextResponse.json(
+          { success: false, error: '登录已失效，请重新登录', status: 'error', message: '登录已失效，请重新登录' },
+          { status: 401 }
+        );
+      }
+      
+      sessionUserId = sessionUser.id;
+      sessionCache.set(sessionToken, { userId: sessionUser.id, timestamp: Date.now() });
     }
 
     const body = await request.json();

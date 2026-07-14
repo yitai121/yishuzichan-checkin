@@ -19,6 +19,7 @@ export const scannerUsers = pgTable(
   (table) => [
     uniqueIndex("scanner_users_username_unique_idx").on(table.username),
     index("scanner_users_is_active_idx").on(table.isActive),
+    index("scanner_users_session_token_idx").on(table.sessionToken),
   ]
 );
 
@@ -71,6 +72,7 @@ export const checkins = pgTable(
     index("checkins_attendee_id_idx").on(table.attendee_id),
     index("checkins_meeting_id_idx").on(table.meeting_id),
     index("checkins_checkin_at_idx").on(table.checkin_at),
+    index("checkins_meeting_date_idx").on(table.meeting_id, table.checkin_date),
     uniqueIndex("checkins_attendee_meeting_date_unique_idx").on(table.attendee_id, table.meeting_id, table.checkin_date),
   ]
 );
